@@ -1,11 +1,14 @@
 # Risks and limitations (draft for the paper)
 
 ## Current scope
-- **Presidio + rule-based secrets only.** No transformer NER or LLM detector yet, so there is no
-  detector-agreement analysis and no sensitive-topic tier.
+- **Rule-based detectors and spaCy NER have run on real data; the LLM layer has not.** The LLM
+  detector, profiles and uniqueness analysis are implemented and tested with a fake backend only.
+  No number from them exists yet.
 - **No human validation yet.** All numbers are *detector-reported* prevalence: they mix true and
-  false positives. Precision, recall and F1 are unknown. State this prominently.
+  false positives. Precision, recall and F1 are unknown until a batch is labeled
+  (`residpii label-export` / `label-score`). State this prominently.
 - **Task types are keyword heuristics**, not a validated classifier.
+- **No sensitive-topic tier.** The LLM prompt extracts quasi-identifiers, not sensitive topics.
 
 ## Detector behaviour seen in the smoke test
 - **Circularity:** WildChat was redacted with Presidio, so a low WildChat Presidio residual is
@@ -20,6 +23,9 @@
 - **URLs are reported separately** (`url_unfiltered` tier), because most are public links.
 - **Dummy-value filtering is heuristic** (example.com, 555 numbers, private IPs, test cards,
   sequential digits, "DAN"). It will miss some placeholders and occasionally drop real values.
+- **`selfid` is a narrow pattern.** It catches "my name is X", "call me X", "this is X speaking"
+  and "I'm X" with a capitalized name of up to three tokens. It misses lower-case names, other
+  phrasings and other languages, and it cannot tell a real name from a role-play persona.
 
 ## Fictional names
 Story/role-play prompts produce many fictional names. We report results with and without them,
@@ -31,8 +37,76 @@ figures are not separated from private individuals.
   noisy proxy (shared, dynamic, VPN IPs). lmsys-chat-1m has no proxy, so heavy users can dominate
   its sample, which makes it less comparable on this dimension.
 - With small samples, strata allocated zero conversations drop out of the weighted population.
-- The smoke configuration reads only the first row groups of one file, so it is **not
-  representative** and exists only to exercise the code.
+- The smoke configurations read only the first row groups of one file, so they are **not
+  representative** and exist only to exercise the code.
+
+## User-level sampling and the user proxy
+- **A `hashed_ip` is not a person.** One address can be many people (households, campuses,
+  carrier-grade NAT, VPN exits) and one person has many addresses (home, work, mobile, dynamic
+  reassignment). Shared addresses merge strangers into one "user", which produces conflicting
+  attributes and can make a profile look more or less unique than any real person. Split users
+  hide accumulation across conversations. Both errors are unmeasured.
+- **Heavy users are capped.** Users above `max_conversations_per_user` (default 50) are likely
+  shared or NAT addresses; a random subset of their conversations is kept. In the full English
+  WildChat scan, 940 of 25,325 eligible users (3.7%) are above the cap. Report this, and consider
+  a sensitivity run that drops them.
+- **The eligible population is a minority.** Requiring three or more conversations keeps about a
+  quarter of proxied users (see `user_activity.csv`). Results describe repeat users, not all users.
+- **Conversation-level tables in user-level mode** weight conversations back to the eligible
+  population, but their bootstrap resamples conversations and ignores clustering within users, so
+  those intervals are too narrow.
+- **Language filter.** Only conversations labeled English are counted and sampled, so a
+  multilingual user's other conversations are invisible. Presidio is English-only; the LLM is not.
+- **Assistant turns.** When fetched, they are scanned and reported in `prevalence_by_role.csv`.
+  For Arena only model A's replies are read.
+
+## LLM extraction
+- **Extraction errors.** The model misses attributes, misreads who they are about (the user, a
+  third party, a fictional persona the user wants text for), and can output attributes that are
+  not in the text. A local 8B model will be noticeably worse at this than a large hosted one.
+- **Inferred attributes are guesses.** "Inferred" covers anything from a near-certain reading to a
+  stereotype (guessing gender from topic, nationality from spelling). The `stated_only` variant is
+  the conservative result; `stated_plus_inferred` is an upper bound on what a motivated reader
+  might assume, right or wrong. A wrong inference still splits users into smaller classes, so it
+  inflates measured uniqueness.
+- **Confidence is uncalibrated.** `llm.min_confidence` is a threshold on the model's own number.
+- **Strict parsing drops whole responses.** One bad field fails the turn after a single retry.
+  Report the failure rate from `llm_run_stats.csv`; failures bias attribute counts downward.
+- **Truncation.** Turns beyond `llm.max_turn_chars` are cut, and only the immediately preceding
+  turn is given as context, so references further back are lost.
+- **Prompt injection.** User text can contain instructions. The parser only accepts values from a
+  closed schema, which limits the damage to wrong labels.
+- **Local vs hosted.** Results depend on the model. A hosted model would likely extract and infer
+  more, raising measured uniqueness; it also sends user text to a third party and is off unless
+  explicitly allowed. Numbers from different models are not comparable.
+- **Subsampling.** With `llm.sample_turns` set, only some users are processed; the uniqueness
+  sample is then smaller than the Presidio sample.
+
+## Profiles and coarsening
+- **Lookup tables are small and US/English-centred.** Cities, regions and occupations outside
+  them become `unknown` and drop out, which *under*states uniqueness for users elsewhere.
+- **Occupation groups** come from the LLM's SOC code when valid, otherwise from a keyword map; the
+  "fine" level falls back to the major group when no minor group is available, so it mixes
+  granularities.
+- **Schools are mapped to an education level** assuming current attendance.
+- **Majority vote hides change.** A user who moved or changed jobs looks like a conflict, and
+  ties become `ambiguous` and drop out.
+- **Six dimensions only.** Employer type, relationship status, nationality and native language are
+  extracted but not used in profiles.
+
+## Uniqueness
+- **Within-sample uniqueness overstates population uniqueness.** A user unique among 2,000 sampled
+  users is often not unique among all users of the service, let alone the general population. The
+  share falls as the sample grows; `uniqueness_summary.csv` shows this at several sample sizes. Do
+  not report the within-sample share as "X% of users are identifiable". For the population-level
+  argument and a way to estimate it, see Rocher, Hendrickx & de Montjoye (2019).
+- **Unique is not identified.** k = 1 means no other sampled user shares the combination. Turning
+  that into an identity needs outside data, which we never use.
+- **Bootstrap intervals hold class sizes fixed** and resample users, so they show sampling noise in
+  the share, not uncertainty in the classes, in the extraction, or in the proxy.
+- **Missing is not absent.** A combination is only evaluated for users who revealed every
+  attribute in it; users who revealed less count as not unique in the headline share.
+- **Small-cell suppression** blanks cells under 10 users, so smoke runs show mostly blanks.
 
 ## Datasets
 - **Survivorship:** we measure only what survived each release's filtering (WildChat deletions

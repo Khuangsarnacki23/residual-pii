@@ -7,3 +7,9 @@ roles: [user, assistant]
 
 sampling:
   mode: user_level
+
+# The identifiability analysis (profiles, uniqueness) needs the LLM detector. It is off by default;
+# see README "The LLM detector is opt-in" before turning it on.
+#   llm:
+#     enabled: true
+#     sample_turns: null   # every turn of every sampled user; set a number to cap the work
