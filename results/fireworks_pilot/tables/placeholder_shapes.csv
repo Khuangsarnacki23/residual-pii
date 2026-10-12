@@ -1,0 +1,11 @@
+dataset,placeholder_shape,occurrences,conversations,configured
+wildchat,CHECKPOINT_PARAMS,77,14,False
+wildchat,LLAMA_FILE_MAGIC_UNVERSIONED,14,14,False
+wildchat,LLAMA_FILE_MAGIC,28,14,False
+wildchat,LLAMA_FILE_VERSION,28,14,False
+wildchat,LLAMA_N_PARTS,14,14,False
+wildchat,MODEL_#B,56,14,False
+wildchat,GGML_TYPE_F#,98,14,False
+wildchat,GGML_TYPE_Q#_#,42,14,False
+wildchat,MEM_REQ_SCRATCH#,28,14,False
+wildchat,MEM_REQ_EVAL,14,14,False

@@ -106,6 +106,7 @@ llm:
   temperature: 0             # not sent to the anthropic backend, whose current models reject it
   anthropic_effort: low      # anthropic backend only; null for models without the effort setting
   fireworks_response_format: json_schema   # json_object for a model without JSON-schema support
+  fireworks_reasoning_effort: low   # reasoning is billed as output tokens; null = the model's default
   max_output_tokens: 2000    # fireworks backend; a reply cut off here is a parse failure
   max_turn_chars: 6000       # longer turns are cut here; the count is in llm_run_stats.csv
   max_context_chars: 1500    # the preceding turn, given as context only

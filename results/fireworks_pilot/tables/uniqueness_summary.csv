@@ -1,0 +1,17 @@
+dataset,variant,level,sample_users,ci_kind,n_qi,n_users,share_unique,ci_low,ci_high,mean_known_attributes,suppressed
+wildchat,stated_only,coarse,50,bootstrap_users,1,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_only,coarse,50,bootstrap_users,2,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_only,coarse,50,bootstrap_users,3,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_only,coarse,50,bootstrap_users,4,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_only,fine,50,bootstrap_users,1,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_only,fine,50,bootstrap_users,2,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_only,fine,50,bootstrap_users,3,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_only,fine,50,bootstrap_users,4,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_plus_inferred,coarse,50,bootstrap_users,1,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_plus_inferred,coarse,50,bootstrap_users,2,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_plus_inferred,coarse,50,bootstrap_users,3,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_plus_inferred,coarse,50,bootstrap_users,4,50,0.12,0.04,0.2205,0.22,False
+wildchat,stated_plus_inferred,fine,50,bootstrap_users,1,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_plus_inferred,fine,50,bootstrap_users,2,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_plus_inferred,fine,50,bootstrap_users,3,50,0.12,0.04,0.2205,0.18,False
+wildchat,stated_plus_inferred,fine,50,bootstrap_users,4,50,0.12,0.04,0.2205,0.18,False

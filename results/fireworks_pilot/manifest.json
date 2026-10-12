@@ -1,0 +1,43 @@
+{
+  "pipeline_version": "0.2.0",
+  "run_name": "fireworks_pilot",
+  "config_hash": "0b401e8b6156b2d7",
+  "sampling_mode": "user_level",
+  "roles": [
+    "user",
+    "assistant"
+  ],
+  "datasets": {
+    "wildchat": {
+      "repo": "allenai/WildChat-1M",
+      "revision": "7d6490e462285cf85d91eabea0f9a954fbddcd1f",
+      "sampling": {
+        "mode": "user_level",
+        "eligible_conversations": 1525,
+        "users_with_proxy": 611,
+        "min_conversations": 3,
+        "max_conversations_per_user": 50,
+        "eligible_users": 131,
+        "sampling_frame": 960,
+        "sampled_users": 50,
+        "sample_size": 426,
+        "users_over_cap": "<10",
+        "sampled_users_over_cap": "<10"
+      }
+    }
+  },
+  "llm": {
+    "backend": "fireworks",
+    "model": "accounts/fireworks/models/gpt-oss-120b",
+    "hosted": true,
+    "prompt_version": "v1",
+    "prompt_sha": "44472e6aa7fb4c10",
+    "turns_processed": 1038,
+    "failures": 0
+  },
+  "figures": [
+    "prevalence_by_category",
+    "direct_by_task",
+    "uniqueness_by_n_qi_wildchat"
+  ]
+}

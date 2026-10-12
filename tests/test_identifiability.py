@@ -88,9 +88,10 @@ def test_defaults_are_off_and_not_allowed(tmp_path):
         Pipeline(cfg, sources={})
     restricted = tmp_path / "data" / "runs" / "t" / "restricted"
     assert not restricted.exists() or not list(restricted.iterdir())
-    # The pilot config ships with the opt-in still off.
-    pilot = load_config(REPO_ROOT / "configs" / "fireworks_pilot.yaml")
-    assert pilot["llm"]["enabled"] is True and pilot["llm"]["allow_hosted"] is False
+    # Only the pilot config turns the detector on; the user-level configs inherit the defaults.
+    for name in ("user_level.yaml", "user_level_smoke.yaml", "smoke.yaml"):
+        inherited = load_config(REPO_ROOT / "configs" / name)["llm"]
+        assert inherited["enabled"] is False and inherited["allow_hosted"] is False
 
 
 # ---------------------------------------------------------------- fireworks backend

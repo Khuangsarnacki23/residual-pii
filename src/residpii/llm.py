@@ -223,6 +223,9 @@ class FireworksBackend:
                                     "json_schema": {"name": "quasi_identifiers", "schema": RESPONSE_SCHEMA}}
         else:
             self.response_format = {"type": "json_object"}
+        # Reasoning models bill their thinking as output tokens; for this extraction task most of the
+        # spend is reasoning, so it is kept low. null leaves the model's default.
+        self.reasoning_effort = lcfg.get("fireworks_reasoning_effort", "low")
         self._local = threading.local()
 
     def last_usage(self) -> tuple[int, int]:
@@ -235,6 +238,8 @@ class FireworksBackend:
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
         if self.temperature is not None:
             body["temperature"] = self.temperature
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
         req = urllib.request.Request(FIREWORKS_URL, data=json.dumps(body).encode(), headers={
             "Content-Type": "application/json", "Authorization": f"Bearer {self._key}"})
         for attempt in range(4):
@@ -427,7 +432,8 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
     turn log: one row per turn with status and latency, no text)."""
     cache = ResponseCache(cache_path)
     max_turn, max_ctx = int(lcfg["max_turn_chars"]), int(lcfg.get("max_context_chars", 1500))
-    settings = [backend.name, backend.model, prompt.sha, lcfg.get("temperature"), max_turn, max_ctx]
+    settings = [backend.name, backend.model, prompt.sha, lcfg.get("temperature"), max_turn, max_ctx,
+                getattr(backend, "reasoning_effort", None)]
     jobs = []
     for row in selected.itertuples(index=False):
         turn, context = row.text[:max_turn], row.context[:max_ctx]
