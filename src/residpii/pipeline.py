@@ -13,7 +13,7 @@ from typing import Callable
 
 import pandas as pd
 
-from . import analysis, dedup, detect, llm, profiles, redactions, report, uniqueness
+from . import analysis, dedup, detect, label, llm, profiles, redactions, report, uniqueness
 from .config import Paths, load_taxonomy, stable_hash
 from .safety import load_or_create_key, safe_count, suppress_small_cells
 from .sampling import NoUserProxy, eligible, stratified_sample, user_activity, user_level_sample
@@ -266,6 +266,62 @@ class Pipeline:
         if not turns:
             raise RuntimeError("No dataset could be loaded.")
         return self.placeholders(pd.concat(turns, ignore_index=True))
+
+    # ------------------------------------------------------------------ hand labeling
+    def label_export(self, n: int, fmt: str = "csv") -> Path:
+        """Writes a batch of user turns for annotation under restricted/labels/. Returns its path."""
+        turns, spans, tasks = [], [], []
+        for name in self.enabled():
+            try:
+                _, tn, s_key = self.sample(name)
+            except Exception as e:
+                log(f"[{name}] SKIPPED: {type(e).__name__}: {str(e).splitlines()[0][:200]}")
+                continue
+            sp, _, tk = self.detect(name, tn, s_key)
+            turns.append(tn), spans.append(sp), tasks.append(tk)
+        if not turns:
+            raise RuntimeError("No dataset could be loaded.")
+        items = label.export_sample(pd.concat(turns, ignore_index=True), pd.concat(spans, ignore_index=True),
+                                    pd.concat(tasks, ignore_index=True), n, self.cfg["seed"],
+                                    self.cfg["presidio"]["score_threshold"], int(self.cfg["label"]["max_text_chars"]))
+        path = label.write_batch(items, self.paths.restricted, fmt)
+        log(f"[label] wrote {len(items):,} turns for annotation (restricted directory, not the repo)")
+        return path
+
+    def label_score(self, labels_path: str | Path, second_annotator: str | None = None) -> pd.DataFrame:
+        """Scores stored detector spans against an annotated batch -> tables/detector_validation.csv."""
+        labels = label.read_labels(labels_path)
+        min_overlap = float(self.cfg["label"]["match_min_overlap"])
+        gold, skipped = label.gold_spans(labels, list(self.taxonomy["categories"]))
+        items = labels.drop_duplicates(label.TURN)[[*label.TURN, "text"]]
+        log(f"[label] {len(items):,} labeled turns, {len(gold):,} gold spans; skipped rows: {skipped}")
+
+        pred, attrs, turn_logs = [], [], []
+        for ds, it in items.groupby("dataset"):
+            path = self.paths.restricted / f"spans_{ds}.parquet"
+            if not path.exists():
+                raise RuntimeError(f"No span store for {ds}; run `residpii run` with this config first.")
+            sp = analysis.residual(pd.read_parquet(path), self.cfg["presidio"]["score_threshold"])
+            sp = sp[sp["role"] == "user"].merge(it.assign(n_chars=it["text"].str.len())[[*label.TURN, "n_chars"]],
+                                                on=label.TURN)
+            pred.append(sp[sp["end"] <= sp["n_chars"]])      # only spans inside the exported text
+            if second_annotator == "llm":
+                # The LLM annotates exactly the labeled turns (the hosted opt-in rule applies as usual).
+                selected = it.assign(role="user", context="")
+                a, tl = llm.extract(selected, self.cfg["llm"], llm.load_prompt(self.cfg), self.llm_backend(),
+                                    self.key, self.paths.restricted / f"llm_cache_{ds}.jsonl")
+                attrs.append(a), turn_logs.append(tl)
+            elif (self.paths.restricted / f"llm_attrs_{ds}.parquet").exists():
+                attrs.append(pd.read_parquet(self.paths.restricted / f"llm_attrs_{ds}.parquet"))
+                turn_logs.append(pd.read_parquet(self.paths.work / f"llm_turns_{ds}.parquet"))
+        out = label.score_detectors(pd.concat(pred, ignore_index=True), gold, min_overlap)
+        if attrs:
+            out = pd.concat([out, label.about_agreement(labels, gold, pd.concat(attrs, ignore_index=True),
+                                                        pd.concat(turn_logs, ignore_index=True), min_overlap)],
+                            ignore_index=True)
+        out.insert(0, "n_labeled_turns", len(items))
+        report.write_table(out, self.paths.tables, "detector_validation")
+        return out
 
     # ------------------------------------------------------------------ end to end
     def run(self, do_dedup: bool = True) -> dict:

@@ -122,6 +122,11 @@ uniqueness:
   sample_sizes: [500, 1000, 2000]
   subsample_draws: 20
 
+# Hand labeling (residpii label-export / label-score).
+label:
+  max_text_chars: 5000       # exported turn text is cut here; spans beyond it are not scored
+  match_min_overlap: 0.5     # a detector span matches a gold span when they share >= this much of the shorter one
+
 analysis:
   bootstrap_reps: 1000
   ci_level: 0.95

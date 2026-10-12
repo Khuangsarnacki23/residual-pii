@@ -4,6 +4,8 @@
   residpii dedup-corpus  --config configs/default.yaml --confirm   # full lmsys vs Arena overlap
   residpii placeholders  --config configs/smoke.yaml     # discover candidate redaction-placeholder formats
   residpii user-activity --config configs/user_level.yaml   # users by conversation count (metadata only)
+  residpii label-export  --config configs/default.yaml --n 300      # batch of turns to annotate (restricted dir)
+  residpii label-score   --config configs/default.yaml --labels <file>   # detector precision/recall vs labels
 """
 from __future__ import annotations
 
@@ -11,10 +13,20 @@ import argparse
 import sys
 
 from .config import load_config
+from .llm import BackendUnavailable, HostedBackendNotAllowed
 from .pipeline import Pipeline
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except (HostedBackendNotAllowed, BackendUnavailable) as e:
+        # Sampling and detection are cached, so a rerun resumes at the LLM stage.
+        print(f"LLM backend: {e}", file=sys.stderr)
+        return 2
+
+
+def _main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="residpii")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -37,6 +49,18 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--config", required=True)
     u.add_argument("--datasets", nargs="*", help="Subset of dataset keys to run")
     u.add_argument("--force", action="store_true", help="Ignore cached stage outputs")
+
+    le = sub.add_parser("label-export", help="Write a stratified batch of user turns for hand labeling")
+    le.add_argument("--config", required=True)
+    le.add_argument("--n", type=int, default=300, help="Number of turns to export")
+    le.add_argument("--format", choices=["csv", "xlsx"], default="csv")
+    le.add_argument("--datasets", nargs="*", help="Subset of dataset keys to run")
+
+    ls = sub.add_parser("label-score", help="Score detectors against an annotated batch (aggregate output)")
+    ls.add_argument("--config", required=True)
+    ls.add_argument("--labels", required=True, help="Annotated batch file (csv or xlsx)")
+    ls.add_argument("--second-annotator", choices=["llm"],
+                    help="Also run the LLM on the labeled turns for agreement statistics")
 
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
@@ -65,6 +89,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "user-activity":
         cfg["sampling"]["mode"] = "user_level"
         print(Pipeline(cfg, force=args.force).user_activity_only().to_string(index=False))
+        return 0
+
+    if args.cmd == "label-export":
+        path = Pipeline(cfg).label_export(args.n, args.format)
+        print(f"Annotate this file in place (it contains raw text; keep it where it is):\n{path}")
+        return 0
+
+    if args.cmd == "label-score":
+        out = Pipeline(cfg).label_score(args.labels, args.second_annotator)
+        print(out.to_string(index=False))
         return 0
     return 1
 

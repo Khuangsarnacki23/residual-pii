@@ -21,6 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1"]
+# Optional, unpinned: only needed for an opted-in hosted LLM backend / xlsx label batches.
+hosted = ["anthropic", "openai"]
+label = ["openpyxl"]
 
 [project.scripts]
 residpii = "residpii.cli:main"
