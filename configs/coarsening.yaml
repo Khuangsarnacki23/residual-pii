@@ -1,0 +1,209 @@
+# Deterministic coarsening maps for per-user profiles (src/residpii/profiles.py).
+# Raw LLM values are matched after normalisation (lower-case, punctuation removed). Anything that
+# does not match becomes `unknown`, so a free-text value can never make a user look unique.
+# These tables are deliberately small and English/US-centred; see docs/limitations.md.
+
+age_band_years: {fine: 10, coarse: 20}
+age_top_code: 80            # ages at or above this share one band
+
+# "AB:name" pairs by US census region. Fine level keeps the state; coarse level keeps the region.
+us_census_regions:
+  northeast: ["CT:connecticut", "ME:maine", "MA:massachusetts", "NH:new hampshire", "RI:rhode island",
+              "VT:vermont", "NJ:new jersey", "NY:new york", "PA:pennsylvania"]
+  midwest:   ["IL:illinois", "IN:indiana", "MI:michigan", "OH:ohio", "WI:wisconsin", "IA:iowa", "KS:kansas",
+              "MN:minnesota", "MO:missouri", "NE:nebraska", "ND:north dakota", "SD:south dakota"]
+  south:     ["DE:delaware", "FL:florida", "GA:georgia", "MD:maryland", "NC:north carolina",
+              "SC:south carolina", "VA:virginia", "DC:district of columbia", "WV:west virginia",
+              "AL:alabama", "KY:kentucky", "MS:mississippi", "TN:tennessee", "AR:arkansas",
+              "LA:louisiana", "OK:oklahoma", "TX:texas"]
+  west:      ["AZ:arizona", "CO:colorado", "ID:idaho", "MT:montana", "NV:nevada", "NM:new mexico",
+              "UT:utah", "WY:wyoming", "AK:alaska", "CA:california", "HI:hawaii", "OR:oregon",
+              "WA:washington"]
+
+# Canonical country -> aliases. Fine and coarse levels both keep the country.
+countries:
+  united states: [usa, us, u.s., u.s.a., america, united states of america, the states]
+  united kingdom: [uk, u.k., great britain, britain, england, scotland, wales, northern ireland]
+  canada: []
+  australia: []
+  new zealand: []
+  ireland: []
+  india: []
+  pakistan: []
+  bangladesh: []
+  china: [prc, mainland china]
+  japan: []
+  south korea: [korea, republic of korea]
+  taiwan: []
+  hong kong: []
+  singapore: []
+  malaysia: []
+  indonesia: []
+  philippines: [the philippines]
+  vietnam: [viet nam]
+  thailand: []
+  germany: []
+  france: []
+  spain: []
+  italy: []
+  portugal: []
+  netherlands: [the netherlands, holland]
+  belgium: []
+  switzerland: []
+  austria: []
+  sweden: []
+  norway: []
+  denmark: []
+  finland: []
+  poland: []
+  ukraine: []
+  russia: [russian federation]
+  turkey: [turkiye, türkiye]
+  greece: []
+  israel: []
+  iran: []
+  saudi arabia: []
+  united arab emirates: [uae, u.a.e.]
+  egypt: []
+  nigeria: []
+  kenya: []
+  south africa: []
+  brazil: [brasil]
+  mexico: []
+  argentina: []
+  colombia: []
+  chile: []
+
+# country -> region -> cities. Also defines the known non-US regions. US regions must be states above.
+cities:
+  united states:
+    new york: [new york city, nyc, new york, brooklyn, manhattan, queens, buffalo]
+    california: [los angeles, la, san francisco, sf, san diego, san jose, sacramento, oakland, palo alto]
+    illinois: [chicago]
+    texas: [houston, dallas, austin, san antonio, fort worth]
+    arizona: [phoenix, tucson]
+    pennsylvania: [philadelphia, pittsburgh]
+    florida: [miami, orlando, tampa, jacksonville]
+    washington: [seattle]
+    massachusetts: [boston, cambridge]
+    georgia: [atlanta]
+    colorado: [denver]
+    michigan: [detroit]
+    minnesota: [minneapolis]
+    nevada: [las vegas]
+    oregon: [portland]
+    district of columbia: [washington dc, washington d.c., dc]
+    ohio: [columbus, cleveland, cincinnati]
+    north carolina: [charlotte, raleigh]
+    tennessee: [nashville, memphis]
+    maryland: [baltimore]
+    missouri: [st louis, saint louis, kansas city]
+    louisiana: [new orleans]
+    utah: [salt lake city]
+    hawaii: [honolulu]
+  canada:
+    ontario: [toronto, ottawa]
+    quebec: [montreal, quebec city]
+    british columbia: [vancouver]
+    alberta: [calgary, edmonton]
+  united kingdom:
+    england: [london, manchester, birmingham, liverpool, leeds, bristol, oxford]
+    scotland: [edinburgh, glasgow]
+    wales: [cardiff]
+    northern ireland: [belfast]
+  ireland: {leinster: [dublin]}
+  australia:
+    new south wales: [sydney]
+    victoria: [melbourne]
+    queensland: [brisbane]
+    western australia: [perth]
+  new zealand: {auckland region: [auckland], wellington region: [wellington]}
+  india:
+    maharashtra: [mumbai, bombay, pune]
+    delhi: [delhi, new delhi]
+    karnataka: [bangalore, bengaluru]
+    tamil nadu: [chennai]
+    telangana: [hyderabad]
+    west bengal: [kolkata, calcutta]
+  china:
+    beijing: [beijing]
+    shanghai: [shanghai]
+    guangdong: [guangzhou, shenzhen]
+  japan: {tokyo: [tokyo], osaka: [osaka]}
+  south korea: {seoul: [seoul]}
+  germany: {berlin: [berlin], bavaria: [munich], hamburg: [hamburg], hesse: [frankfurt]}
+  france: {ile-de-france: [paris], auvergne-rhone-alpes: [lyon]}
+  spain: {madrid: [madrid], catalonia: [barcelona]}
+  italy: {lazio: [rome], lombardy: [milan]}
+  netherlands: {north holland: [amsterdam]}
+  russia: {moscow: [moscow], saint petersburg: [saint petersburg, st petersburg]}
+  turkey: {istanbul: [istanbul], ankara: [ankara]}
+  brazil: {sao paulo: [sao paulo, são paulo], rio de janeiro: [rio de janeiro, rio]}
+  mexico: {mexico city: [mexico city, cdmx]}
+  egypt: {cairo: [cairo]}
+  nigeria: {lagos: [lagos]}
+  south africa: {gauteng: [johannesburg], western cape: [cape town]}
+  united arab emirates: {dubai: [dubai], abu dhabi: [abu dhabi]}
+  philippines: {metro manila: [manila]}
+  indonesia: {jakarta: [jakarta]}
+  thailand: {bangkok: [bangkok]}
+  pakistan: {sindh: [karachi], punjab: [lahore]}
+
+gender:
+  male: [male, man, m, boy, guy, cis man, cis male, he/him, husband, father, son, brother]
+  female: [female, woman, f, girl, cis woman, cis female, she/her, wife, mother, daughter, sister]
+  nonbinary: [nonbinary, non-binary, enby, genderqueer, genderfluid, agender, they/them]
+
+# First matching pattern wins (case-insensitive search on the normalised value).
+# Fine levels: less_than_high_school, high_school, some_college, bachelors, graduate.
+education_level:
+  - [graduate, '\b(?:phd|ph d|doctorate|doctoral|master|masters|mba|msc|md|jd|postgrad\w*|graduate (?:student|school|degree)|grad (?:student|school))\b']
+  - [high_school, '\b(?:high school|highschool|secondary|ged|a levels?|sixth form|12th grade|11th grade|10th grade|9th grade)\b']
+  - [less_than_high_school, '\b(?:middle school|elementary|primary school|junior high|[1-8](?:st|nd|rd|th) grade)\b']
+  - [bachelors, '\b(?:bachelor\w*|undergraduate degree|college degree|university degree|ba|bs|bsc|beng|college graduate|graduated college)\b']
+  - [some_college, '\b(?:undergrad\w*|college student|university student|freshman|sophomore|junior|senior|associate\w*|some college|in college|in university|community college)\b']
+# A school name or kind implies a level (current attendance, so "some_college" for a university).
+school:
+  - [graduate, '\b(?:graduate school|grad school|law school|medical school|med school|business school)\b']
+  - [high_school, '\b(?:high school|highschool|secondary school|gymnasium|lycee|sixth form)\b']
+  - [less_than_high_school, '\b(?:middle school|elementary school|primary school|junior high)\b']
+  - [some_college, '\b(?:university|college|institute of technology|polytechnic|community college)\b']
+education_coarse:
+  less_than_high_school: high_school_or_less
+  high_school: high_school_or_less
+  some_college: college
+  bachelors: college
+  graduate: graduate
+
+# Fallback when the LLM gives no usable SOC code: first matching pattern wins.
+# [pattern, major group, optional minor group]. Codes are llm.OCCUPATION_GROUPS.
+occupation_keywords:
+  - ['\b(?:retired|retiree|unemployed|homemaker|stay at home|housewife|between jobs)\b', NW]
+  - ['\b(?:student|pupil|undergrad\w*|phd candidate|schoolboy|schoolgirl)\b', ST]
+  - ['\b(?:nursing assistant|caregiver|medical assistant|home health|orderly)\b', "31"]
+  - ['\b(?:software|developer|programmer|web dev\w*|devops|sysadmin|system administrator)\b', "15", "15-1"]
+  - ['\b(?:data scien\w*|data analyst|statistician|machine learning|it support|qa|cyber\w*|database)\b', "15"]
+  - ['\b(?:nurse|doctor|physician|surgeon|dentist|pharmacist|veterinarian|vet|optometrist)\b', "29", "29-1"]
+  - ['\b(?:therapist|paramedic|emt|radiographer|lab technician|dietitian)\b', "29"]
+  - ['\b(?:professor|lecturer)\b', "25", "25-1"]
+  - ['\b(?:teacher|tutor|librarian|teaching assistant|instructor|educator)\b', "25"]
+  - ['\b(?:lawyer|attorney|solicitor|barrister|judge)\b', "23", "23-1"]
+  - ['\b(?:paralegal|legal assistant)\b', "23", "23-2"]
+  - ['\b(?:engineer|architect|surveyor|drafter)\b', "17"]
+  - ['\b(?:scientist|researcher|chemist|biologist|physicist|economist|psychologist|sociologist)\b', "19"]
+  - ['\b(?:accountant|auditor|financial analyst|hr|human resources|recruiter|consultant|analyst|underwriter)\b', "13"]
+  - ['\b(?:manager|director|ceo|cto|cfo|founder|executive|business owner|owner|entrepreneur|principal)\b', "11"]
+  - ['\b(?:writer|journalist|designer|artist|musician|actor|actress|photographer|editor|translator|author|animator)\b', "27"]
+  - ['\b(?:social worker|counselor|counsellor|clergy|pastor|priest|imam|rabbi)\b', "21"]
+  - ['\b(?:police|firefighter|security guard|correctional|detective)\b', "33"]
+  - ['\b(?:chef|cook|waiter|waitress|server|bartender|barista|dishwasher)\b', "35"]
+  - ['\b(?:janitor|cleaner|housekeeper|landscap\w*|groundskeeper)\b', "37"]
+  - ['\b(?:hairdresser|barber|nanny|childcare|babysitter|fitness trainer|personal trainer)\b', "39"]
+  - ['\b(?:sales\w*|cashier|retail|real estate agent|realtor)\b', "41"]
+  - ['\b(?:receptionist|secretary|clerk|administrative|admin|customer service|office|bookkeeper)\b', "43"]
+  - ['\b(?:farmer|farm\w*|fisher\w*|forest\w*|rancher)\b', "45"]
+  - ['\b(?:construction|carpenter|electrician|plumber|miner|roofer|mason)\b', "47"]
+  - ['\b(?:mechanic|technician|repair\w*|maintenance)\b', "49"]
+  - ['\b(?:factory|machinist|welder|assembl\w*|manufactur\w*)\b', "51"]
+  - ['\b(?:driver|pilot|trucker|delivery|warehouse|courier|conductor)\b', "53"]
+  - ['\b(?:soldier|military|army|navy|air force|marine|veteran)\b', "55"]
