@@ -1,0 +1,67 @@
+{
+  "pipeline_version": "0.1.0",
+  "run_name": "default",
+  "config_hash": "5dfcf3653eb9cf84",
+  "datasets": {
+    "wildchat": {
+      "repo": "allenai/WildChat-1M",
+      "revision": "7d6490e462285cf85d91eabea0f9a954fbddcd1f",
+      "sampling": {
+        "eligible_conversations": 474405,
+        "one_per_user_applied": true,
+        "eligible_users": 98094,
+        "conversations_without_user_proxy": 0,
+        "sampling_frame": 98094,
+        "strata_columns": [
+          "month",
+          "turn_bucket"
+        ],
+        "sample_size": 5000,
+        "n_strata": 39
+      }
+    },
+    "arena": {
+      "repo": "lmsys/chatbot_arena_conversations",
+      "revision": "1b6335d42a1d2c7e34870c905d03ab964f7f2bd8",
+      "sampling": {
+        "eligible_conversations": 29189,
+        "one_per_user_applied": true,
+        "eligible_users": 11673,
+        "conversations_without_user_proxy": 0,
+        "sampling_frame": 11673,
+        "strata_columns": [
+          "month",
+          "turn_bucket"
+        ],
+        "sample_size": 5000,
+        "n_strata": 9
+      }
+    },
+    "lmsys": {
+      "repo": "lmsys/lmsys-chat-1m",
+      "revision": "200748d9d3cddcc9d782887541057aca0b18c5da",
+      "sampling": {
+        "eligible_conversations": 777453,
+        "one_per_user_applied": false,
+        "sampling_frame": 777453,
+        "strata_columns": [
+          "turn_bucket"
+        ],
+        "sample_size": 5000,
+        "n_strata": 3
+      }
+    }
+  },
+  "dedup": {
+    "scope": "lmsys sample vs full Arena (English)",
+    "arena_reference_conversations": 29189,
+    "unique": 4681,
+    "exact": 266,
+    "near": 53
+  },
+  "figures": [
+    "prevalence_by_category",
+    "prevalence_rare_direct",
+    "direct_by_task"
+  ]
+}

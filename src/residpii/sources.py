@@ -134,16 +134,31 @@ class HFSource:
             log(f"[{self.name}] dropped {n_before - len(out):,} rows with duplicate conversation ids")
         return out
 
+    def _turn_columns(self, pf: pq.ParquetFile) -> list[str]:
+        """Leaf paths of the per-turn fields. Writers name list elements differently
+        (`conv.list.element.content` vs `conv.list.item.content`), so look them up."""
+        s = self.spec
+        paths = [pf.metadata.schema.column(j).path for j in range(pf.metadata.num_columns)]
+        cols = []
+        for f in s.turn_fields:
+            hits = [p for p in paths if p.startswith(f"{s.conv}.list.") and p.split(".")[3:] == [f]]
+            if not hits:
+                raise RuntimeError(f"{self.name}: no leaf column for {s.conv}[].{f}")
+            cols.append(hits[0])
+        return cols
+
     def iter_turn_batches(self, meta: pd.DataFrame):
         """Yields user turns one Parquet row group at a time (bounded memory for corpus passes)."""
-        s = self.spec
-        cols = [f"{s.conv}.list.element.{f}" for f in s.turn_fields]
         groups = meta.groupby(["_file", "_rg"], sort=True)
-        cur_file, pf = None, None
+        cur_file, pf, cols = None, None, None
         for i, ((fi, rg), g) in enumerate(groups):
             if fi != cur_file:
                 pf, cur_file = self._open(self.files[fi]), fi
-            conv = pf.read_row_group(int(rg), columns=cols).column(0)
+                cols = self._turn_columns(pf)
+            tb = pf.read_row_group(int(rg), columns=cols)
+            if tb.num_columns != 1:
+                raise RuntimeError(f"{self.name}: projected read returned {tb.num_columns} columns")
+            conv = tb.column(0)
             picked = conv.take(g["_row"].to_numpy()).to_pylist()
             rows = []
             for cid, lang, turns in zip(g["conversation_id"], g["language"], picked):

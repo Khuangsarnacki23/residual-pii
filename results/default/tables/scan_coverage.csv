@@ -1,0 +1,4 @@
+dataset,user_turns,chars_total,chars_scanned,share_unscanned
+arena,5884,907707,907707,0
+lmsys,9673,2546187,2546187,0
+wildchat,11562,11363180,10885791,0.0420119

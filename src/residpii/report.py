@@ -53,7 +53,7 @@ def dot_ci_panels(df: pd.DataFrame, row_col: str, panel_col: str, panels: list[s
     fig, axes = plt.subplots(1, len(panels), figsize=(4.2 * len(panels) + 1.2, 0.42 * len(row_order) + 1.4),
                              sharey=True, squeeze=False)
     offsets = np.linspace(-0.22, 0.22, len(datasets)) if len(datasets) > 1 else [0.0]
-    xmax = max(0.05, float(df["ci_high"].max(skipna=True) if df["ci_high"].notna().any() else df["prevalence"].max()))
+    xmax = max(0.002, float(df["ci_high"].max(skipna=True) if df["ci_high"].notna().any() else df["prevalence"].max()))
     for ax, panel in zip(axes[0], panels):
         sub = df[df[panel_col] == panel]
         for off, ds in zip(offsets, datasets):
@@ -64,16 +64,16 @@ def dot_ci_panels(df: pd.DataFrame, row_col: str, panel_col: str, panels: list[s
                        zorder=3, label=DATASET_LABELS[ds])
         ax.set_title(panel_labels.get(panel, panel), fontsize=10, color=TEXT_PRIMARY, loc="left")
         ax.set_xlim(0, xmax * 1.05)
-        ax.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
+        ax.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0 if xmax >= 0.05 else 1))
         ax.set_xlabel(xlabel, fontsize=9)
         _style(ax)
     axes[0][0].set_yticks(range(len(row_order)), [r.replace("_", " ") for r in row_order], color=TEXT_PRIMARY)
     axes[0][0].invert_yaxis()
     handles, labels = axes[0][0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper right", ncol=len(datasets), frameon=False, fontsize=9,
-               labelcolor=TEXT_PRIMARY)
-    fig.suptitle(title, x=0.01, ha="left", fontsize=11, color=TEXT_PRIMARY)
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.suptitle(title, x=0.01, y=0.99, ha="left", va="top", fontsize=11, color=TEXT_PRIMARY)
+    fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.005, 0.95), ncol=len(datasets),
+               frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY, handletextpad=0.3, columnspacing=1.2)
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
     for ext in ("png", "pdf"):
         fig.savefig(path.with_suffix(f".{ext}"), dpi=200)
     plt.close(fig)
@@ -87,8 +87,14 @@ def figures(prev: pd.DataFrame, by_task: pd.DataFrame, taxonomy: dict, fig_dir: 
     if not p.empty:
         dot_ci_panels(p, "category", "variant", ["all", "excl_story_roleplay"], VARIANT_LABELS, cats,
                       "Conversations with ≥1 residual detection", fig_dir / "prevalence_by_category",
-                      "Residual detections by category (Presidio + secrets, design-weighted, 95% bootstrap CI)")
+                      "Residual detections by category (design-weighted, 95% bootstrap CI)")
         made.append("prevalence_by_category")
+        rare = [c for c in ("email", "phone", "account_id", "ip_address", "api_key_token") if c in cats]
+        if rare:
+            dot_ci_panels(p[p["category"].isin(rare)], "category", "variant", ["all", "excl_story_roleplay"],
+                          VARIANT_LABELS, rare, "Conversations with ≥1 residual detection",
+                          fig_dir / "prevalence_rare_direct", "Rare direct identifiers (zoomed scale)")
+            made.append("prevalence_rare_direct")
     t = by_task[(by_task["detector"] == "any") & (by_task["category"] == "tier_direct")]
     if not t.empty:
         order = (t.groupby("task_type")["task_share"].mean().sort_values(ascending=False).index.tolist())

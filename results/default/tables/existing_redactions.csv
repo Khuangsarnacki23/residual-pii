@@ -1,0 +1,4 @@
+dataset,n_conversations,share_with_placeholder,placeholders_per_1k_tokens,share_flagged_redacted
+arena,5000,0,0,
+lmsys,5000,0.252391,15.8247,0.348188
+wildchat,5000,0.00739615,0.0409184,0.010397
