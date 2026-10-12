@@ -168,7 +168,7 @@ def detect(turns: pd.DataFrame, cfg: dict, taxonomy: dict, key: bytes) -> tuple[
     found: dict[tuple, tuple] = {}   # (row, start, end, detector, entity) -> score
 
     batch = build_presidio(pcfg)
-    print(f"[detect] presidio: {len(chunk_texts):,} chunks from {len(turns):,} user turns",
+    print(f"[detect] presidio: {len(chunk_texts):,} chunks from {len(turns):,} turns",
           file=sys.stderr, flush=True)
     results = batch.analyze_iterator(chunk_texts, language="en", entities=entities,
                                      score_threshold=pcfg["store_threshold"], batch_size=32)
@@ -186,18 +186,18 @@ def detect(turns: pd.DataFrame, cfg: dict, taxonomy: dict, key: bytes) -> tuple[
             for s, e, ent in secret_matches(text[:max_chars]):
                 found[(row, s, e, "secrets", ent)] = 1.0
 
-    meta = turns[["dataset", "conversation_id", "turn_index"]].to_numpy()
+    meta = turns[["dataset", "conversation_id", "turn_index", "role"]].to_numpy()
     texts = turns["text"].to_numpy()
     spans = []
     for (row, s, e, det, ent), score in found.items():
         category, tier = lmap.get(ent, (ent.lower(), "unmapped"))
         value = texts[row][s:e]
         in_ph = any(s < pe and ps < e for ps, pe in ph_by_row[row])
-        ds, cid, tidx = meta[row]
+        ds, cid, tidx, role = meta[row]
         spans.append(SafeSpan(ds, cid, int(tidx), s, e, det, ent, category, tier, round(score, 4),
-                              keyed_hash(key, value), in_ph, is_dummy(ent, value)).to_row())
+                              keyed_hash(key, value), in_ph, is_dummy(ent, value), role=role).to_row())
     span_cols = list(SafeSpan.__dataclass_fields__) + ["length"]
-    stats_df = pd.concat([turns[["dataset", "conversation_id", "turn_index"]].reset_index(drop=True),
+    stats_df = pd.concat([turns[["dataset", "conversation_id", "turn_index", "role"]].reset_index(drop=True),
                           pd.DataFrame(stats)], axis=1)
     return pd.DataFrame(spans, columns=span_cols), stats_df
 

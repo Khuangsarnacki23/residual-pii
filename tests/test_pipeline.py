@@ -94,8 +94,7 @@ def test_one_conversation_per_user(run):
     assert manifest["datasets"]["wildchat"]["sampling"]["one_per_user_applied"]
 
 
-def test_no_canary_leaks_outside_restricted(run):
-    pipe, _, console = run
+def _assert_no_canaries(pipe, console: str) -> None:
     for c in CANARIES:
         assert c not in console, f"canary leaked to console: {c[:4]}…"
     roots = [pipe.paths.results, pipe.paths.work]
@@ -114,6 +113,11 @@ def test_no_canary_leaks_outside_restricted(run):
                 assert c.casefold() not in blob.casefold(), f"canary leaked into {f.name}"
 
 
+def test_no_canary_leaks_outside_restricted(run):
+    pipe, _, console = run
+    _assert_no_canaries(pipe, console)
+
+
 def test_span_store_has_no_text(run):
     pipe, _, _ = run
     spans = pd.read_parquet(pipe.paths.restricted / "spans_wildchat.parquet")
@@ -126,3 +130,66 @@ def test_restricted_dir_permissions(run):
     pipe, _, _ = run
     assert (pipe.paths.restricted.stat().st_mode & 0o777) == 0o700
     assert ((pipe.paths.data_root / "hmac.key").stat().st_mode & 0o777) == 0o600
+
+
+# ---------------------------------------------------------------- user-level mode
+
+USER_CONV_COUNTS = {f"u{i}": n for i, n in enumerate([1, 2, 2, 3, 3, 3, 4, 4, 5, 6, 7, 8, 12, 60])}
+
+
+def _user_convs(prefix: str, with_users: bool = True) -> list[dict]:
+    base = _convs(prefix, 6)
+    out = []
+    for user, n in USER_CONV_COUNTS.items():
+        for i in range(n):
+            turns = [dict(t) for t in base[(i + len(user)) % len(base)]["turns"]]
+            turns[1]["content"] = "Sure. You could also ask Marguerite Oyelaran at the Lisbon office."
+            out.append({"conversation_id": f"{prefix}-{user}-{i}", "user": user if with_users else None,
+                        "language": "English", "timestamp": "2023-05-01", "turns": turns})
+    return out
+
+
+@pytest.fixture()
+def user_run(tmp_path, capfd):
+    cfg = load_config(REPO_ROOT / "configs" / "user_level_smoke.yaml")
+    cfg.update(run_name="utest", data_root=str(tmp_path / "data"), results_dir=str(tmp_path / "results"))
+    cfg["analysis"]["bootstrap_reps"] = 50
+    cfg["user_level"]["max_conversations_per_user"] = 10
+    key = load_or_create_key(Path(cfg["data_root"]))
+    sources = {"wildchat": InMemorySource("wildchat", _user_convs("wildchat"), key),
+               "lmsys": InMemorySource("lmsys", _user_convs("lmsys", with_users=False), key)}
+    pipe = Pipeline(cfg, sources=sources)
+    manifest = pipe.run(do_dedup=False)
+    out, err = capfd.readouterr()
+    return pipe, manifest, out + err
+
+
+def test_user_level_run(user_run):
+    pipe, manifest, console = user_run
+    # No user proxy -> skipped with a logged reason, not sampled per conversation.
+    assert "no user proxy" in manifest["datasets"]["lmsys"]["skipped"]
+    assert "lmsys" in console and "user proxy" in console
+    smp = pd.read_parquet(pipe.paths.work / "sample_wildchat.parquet")
+    per_user = smp.groupby("user_key").agg(kept=("conversation_id", "size"), full=("user_n_conversations", "first"))
+    assert len(per_user) == 11                                   # users with >= 3 conversations
+    assert (per_user["full"] >= 3).all() and (per_user["kept"] <= 10).all()
+    assert (per_user.loc[per_user["full"] <= 10, "kept"] == per_user.loc[per_user["full"] <= 10, "full"]).all()
+    sampling = manifest["datasets"]["wildchat"]["sampling"]
+    assert sampling["mode"] == "user_level" and sampling["sampled_users"] == 11
+    assert sampling["users_over_cap"] == "<10"                   # small counts are never published exactly
+
+
+def test_user_level_tables(user_run):
+    pipe, _, console = user_run
+    act = pd.read_csv(pipe.paths.tables / "user_activity.csv")
+    assert set(act.columns) == {"dataset", "activity_bucket", "meets_min_conversations", "n_users",
+                                "share_users", "suppressed"}
+    assert act["suppressed"].all() and act["n_users"].isna().all()   # every bucket has < 10 users here
+    turns = pd.read_parquet(pipe.paths.restricted / "turns_wildchat.parquet")
+    assert set(turns["role"]) == {"user", "assistant"}
+    by_role = pd.read_csv(pipe.paths.tables / "prevalence_by_role.csv")
+    assert set(by_role["role"]) == {"user", "assistant"}
+    # The assistant-side name counts for the assistant role only; prevalence.csv stays user-only.
+    spans = pd.read_parquet(pipe.paths.restricted / "spans_wildchat.parquet")
+    assert (spans.loc[spans["role"] == "assistant", "entity"] == "PERSON").any()
+    _assert_no_canaries(pipe, console)

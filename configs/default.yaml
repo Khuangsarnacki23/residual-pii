@@ -34,10 +34,26 @@ scan:
   max_files: null
   max_row_groups_per_file: null
 
+# Turn roles to fetch and scan. [user, assistant] adds the assistant's replies: they give the LLM
+# detector its context and get their own prevalence_by_role table. Prevalence tables stay user-only.
+roles: [user]
+
+# Published tables blank any cell backed by fewer than this many users (new user-level tables).
+publication:
+  min_cell: 10
+
 sampling:
+  mode: per_user_one_conv     # one conversation per user proxy; alternative: user_level (see below)
   one_per_user: true          # applies where the dataset has a user proxy (WildChat hashed_ip, Arena judge)
   strata: [month, turn_bucket]  # strata a dataset lacks (e.g. lmsys has no timestamp) are skipped
   turn_bucket_edges: [1, 2, 4]  # buckets: 1, 2-3, 4+
+
+# Used when sampling.mode is user_level: a uniform sample of users, each with their conversations.
+# Datasets without a user proxy (lmsys) are skipped in that mode.
+user_level:
+  n_users: 2000
+  min_conversations: 3
+  max_conversations_per_user: 50   # cap heavy users / shared IPs; a random subset is kept above the cap
 
 # Regexes for each dataset's own redaction placeholders. Detections overlapping a placeholder
 # are excluded from residual counts; placeholder frequency is reported separately.

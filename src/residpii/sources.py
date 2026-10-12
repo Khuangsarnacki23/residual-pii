@@ -2,7 +2,8 @@
 
 Nothing is downloaded in full. A metadata scan reads only small columns (ids, language, timestamp,
 user proxy, ...); text is then fetched only for the row groups that contain sampled conversations,
-reading only the nested `content`/`role` fields. Disk use is limited to the sampled user turns.
+reading only the nested `content`/`role` fields. Disk use is limited to the sampled turns of the
+configured roles (user turns by default).
 
 Common schemas
   meta : dataset, conversation_id, user_key, timestamp, model, n_turns, language, flag_redacted,
@@ -41,7 +42,8 @@ SPECS = {
                      lang="language", user="hashed_ip", time="timestamp",
                      flags={"redacted": "redacted", "toxic": "toxic"},
                      turn_fields=("content", "role", "language")),
-    # lmsys/chatbot_arena_conversations: user turns are identical in conversation_a and _b.
+    # lmsys/chatbot_arena_conversations: user turns are identical in conversation_a and _b;
+    # assistant turns differ, and only model_a's side is read.
     "arena": Spec(id="question_id", conv="conversation_a", model="model_a", turns="turn",
                   lang="language", user="judge", time="tstamp", time_unit="s"),
     # lmsys/lmsys-chat-1m: no user proxy and no timestamp in the public release.
@@ -134,8 +136,8 @@ class HFSource:
             log(f"[{self.name}] dropped {n_before - len(out):,} rows with duplicate conversation ids")
         return out
 
-    def iter_turn_batches(self, meta: pd.DataFrame):
-        """Yields user turns one Parquet row group at a time (bounded memory for corpus passes)."""
+    def iter_turn_batches(self, meta: pd.DataFrame, roles: tuple = ("user",)):
+        """Yields turns of the given roles one Parquet row group at a time (bounded memory)."""
         s = self.spec
         cols = [f"{s.conv}.list.element.{f}" for f in s.turn_fields]
         groups = meta.groupby(["_file", "_rg"], sort=True)
@@ -147,25 +149,33 @@ class HFSource:
             picked = conv.take(g["_row"].to_numpy()).to_pylist()
             rows = []
             for cid, lang, turns in zip(g["conversation_id"], g["language"], picked):
-                rows.extend(_user_turns(self.name, cid, lang, turns))
+                rows.extend(_select_turns(self.name, cid, lang, turns, roles))
             if (i + 1) % 50 == 0 or i + 1 == groups.ngroups:
                 log(f"[{self.name}] fetched text: {i + 1}/{groups.ngroups} row groups")
             yield pd.DataFrame(rows, columns=TURN_COLUMNS)
 
-    def fetch_turns(self, meta: pd.DataFrame) -> pd.DataFrame:
-        batches = list(self.iter_turn_batches(meta))
+    def fetch_turns(self, meta: pd.DataFrame, roles: tuple = ("user",)) -> pd.DataFrame:
+        batches = list(self.iter_turn_batches(meta, roles))
         return pd.concat(batches, ignore_index=True) if batches else pd.DataFrame(columns=TURN_COLUMNS)
 
 
 TURN_COLUMNS = ["dataset", "conversation_id", "turn_index", "role", "text", "language"]
 
 
-def _user_turns(dataset: str, cid: str, conv_lang: str, turns) -> list[tuple]:
+# All three datasets use the OpenAI-style labels "user" and "assistant"; the aliases are a guard
+# against other chat formats and cost nothing.
+ROLE_ALIASES = {"human": "user", "gpt": "assistant", "bot": "assistant", "model": "assistant",
+                "chatbot": "assistant"}
+
+
+def _select_turns(dataset: str, cid: str, conv_lang: str, turns, roles: tuple = ("user",)) -> list[tuple]:
     out = []
     for idx, t in enumerate(turns or []):
-        if (t.get("role") or "").lower() != "user":
+        role = (t.get("role") or "").lower()
+        role = ROLE_ALIASES.get(role, role)
+        if role not in roles:
             continue
-        out.append((dataset, cid, idx, "user", t.get("content") or "", t.get("language") or conv_lang))
+        out.append((dataset, cid, idx, role, t.get("content") or "", t.get("language") or conv_lang))
     return out
 
 
@@ -193,11 +203,11 @@ class InMemorySource:
         df["flag_toxic"] = df["flag_toxic"].astype("boolean")
         return df
 
-    def fetch_turns(self, meta: pd.DataFrame) -> pd.DataFrame:
+    def fetch_turns(self, meta: pd.DataFrame, roles: tuple = ("user",)) -> pd.DataFrame:
         rows = []
         for cid, lang in zip(meta["conversation_id"], meta["language"]):
-            rows.extend(_user_turns(self.name, cid, lang, self._convs[cid]["turns"]))
+            rows.extend(_select_turns(self.name, cid, lang, self._convs[cid]["turns"], roles))
         return pd.DataFrame(rows, columns=TURN_COLUMNS)
 
-    def iter_turn_batches(self, meta: pd.DataFrame):
-        yield self.fetch_turns(meta)
+    def iter_turn_batches(self, meta: pd.DataFrame, roles: tuple = ("user",)):
+        yield self.fetch_turns(meta, roles)

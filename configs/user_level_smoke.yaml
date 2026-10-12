@@ -1,0 +1,15 @@
+# User-level smoke test: about 50 users from the first few row groups of one file.
+# NOT representative (early row groups only, so conversation counts per user are truncated);
+# it exists to exercise the user-level path end to end.
+extends: user_level.yaml
+run_name: user_level_smoke
+
+user_level:
+  n_users: 50
+
+scan:
+  max_files: 1
+  max_row_groups_per_file: 3
+
+analysis:
+  bootstrap_reps: 200

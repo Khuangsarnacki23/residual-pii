@@ -15,11 +15,11 @@ import pandas as pd
 
 from . import analysis, dedup, detect, redactions, report
 from .config import Paths, load_taxonomy, stable_hash
-from .safety import load_or_create_key
-from .sampling import eligible, stratified_sample
-from .sources import HFSource
+from .safety import load_or_create_key, safe_count, suppress_small_cells
+from .sampling import NoUserProxy, eligible, stratified_sample, user_activity, user_level_sample
+from .sources import SPECS, HFSource
 
-PIPELINE_VERSION = "0.1.0"
+PIPELINE_VERSION = "0.2.0"
 
 
 def log(msg: str) -> None:
@@ -47,8 +47,17 @@ class Pipeline:
         self.taxonomy = load_taxonomy(cfg)
         self.force = force
         self._sources = sources or {}
+        self.mode = cfg["sampling"].get("mode", "per_user_one_conv")
+        if self.mode not in ("per_user_one_conv", "user_level"):
+            raise ValueError(f"Unknown sampling.mode: {self.mode!r}")
+        self.roles = tuple(cfg.get("roles") or ["user"])
+        if "user" not in self.roles:
+            raise ValueError("roles must include 'user'")
+        self.min_cell = int(cfg.get("publication", {}).get("min_cell", 10))
         self.manifest: dict = {"pipeline_version": PIPELINE_VERSION, "run_name": cfg["run_name"],
-                               "config_hash": stable_hash(cfg), "datasets": {}}
+                               "config_hash": stable_hash(cfg), "sampling_mode": self.mode,
+                               "roles": list(self.roles), "datasets": {}}
+        self._activity: dict[str, pd.DataFrame] = {}
 
     # ------------------------------------------------------------------ helpers
     def enabled(self) -> list[str]:
@@ -65,22 +74,66 @@ class Pipeline:
         return self.cfg["seed"] + zlib.crc32(name.encode()) % 10_000
 
     # ------------------------------------------------------------------ stages
-    def sample(self, name: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
-        """Returns (sample metadata, sampled user turns, cache key)."""
+    def _meta(self, name: str):
+        """Returns (source, cached metadata scan, cache key). Checks the user proxy in user_level mode."""
+        if self.mode == "user_level" and name not in self._sources and SPECS[name].user is None:
+            raise NoUserProxy(f"user_level sampling needs a user proxy and {name} has none")
         src = self.source(name)
         base = {"v": PIPELINE_VERSION, "repo": src.repo, "rev": src.revision, "scan": self.cfg["scan"]}
         meta_key = stable_hash(base)
         meta, _ = cached(self.paths.work / f"meta_{name}.parquet", meta_key,
                          lambda: (src.scan_meta(), {}), self.force)
-        n = self.cfg["datasets"].get(name, {}).get("sample_size", 100)
-        s_key = stable_hash([meta_key, self.cfg["sampling"], self.cfg.get("languages"), n, self.seed(name)])
-        smp, summary = cached(self.paths.work / f"sample_{name}.parquet", s_key,
-                              lambda: stratified_sample(meta, n, self.cfg, self.seed(name)), self.force)
-        turns, _ = cached(self.paths.restricted / f"turns_{name}.parquet", s_key,
-                          lambda: (src.fetch_turns(smp), {}), self.force)
+        if self.mode == "user_level" and not meta["user_key"].notna().any():
+            raise NoUserProxy(f"user_level sampling needs a user proxy and {name} has none")
+        return src, meta, meta_key
+
+    def sample(self, name: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+        """Returns (sample metadata, sampled turns of the configured roles, cache key)."""
+        src, meta, meta_key = self._meta(name)
+        # The mode and its settings are part of the key, so the two samplers never share a cache entry.
+        if self.mode == "user_level":
+            s_key = stable_hash([meta_key, "user_level", self.cfg["user_level"], self.cfg["sampling"],
+                                 self.cfg.get("languages"), self.seed(name)])
+            draw = lambda: user_level_sample(meta, self.cfg, self.seed(name))  # noqa: E731
+        else:
+            n = self.cfg["datasets"].get(name, {}).get("sample_size", 100)
+            s_key = stable_hash([meta_key, self.cfg["sampling"], self.cfg.get("languages"), n, self.seed(name)])
+            draw = lambda: stratified_sample(meta, n, self.cfg, self.seed(name))  # noqa: E731
+        smp, summary = cached(self.paths.work / f"sample_{name}.parquet", s_key, draw, self.force)
+        t_key = stable_hash([s_key, self.roles])
+        turns, _ = cached(self.paths.restricted / f"turns_{name}.parquet", t_key,
+                          lambda: (src.fetch_turns(smp, self.roles), {}), self.force)
+        summary = dict(summary)
+        if "user_activity" in summary:
+            self._activity[name] = pd.DataFrame(summary.pop("user_activity")).assign(dataset=name)
+            for k in ("users_over_cap", "sampled_users_over_cap"):
+                summary[k] = safe_count(summary[k], self.min_cell)
         self.manifest["datasets"][name] = {"repo": src.repo, "revision": src.revision, "sampling": summary}
-        log(f"[{name}] sample: {len(smp):,} conversations, {len(turns):,} user turns")
-        return smp, turns, s_key
+        log(f"[{name}] sample: {len(smp):,} conversations, {len(turns):,} turns ({', '.join(self.roles)})")
+        return smp, turns, t_key
+
+    def write_user_activity(self) -> pd.DataFrame | None:
+        """Bucketed users-by-conversation-count table for the datasets sampled at user level."""
+        if not self._activity:
+            return None
+        act = pd.concat(self._activity.values(), ignore_index=True)
+        act = act[["dataset", "activity_bucket", "meets_min_conversations", "n_users", "share_users"]]
+        act = suppress_small_cells(act, "n_users", ["share_users"], self.min_cell)
+        report.write_table(act, self.paths.tables, "user_activity")
+        return act
+
+    def user_activity_only(self) -> pd.DataFrame:
+        """Metadata scan only (no text): how many users have how many conversations."""
+        for name in self.enabled():
+            try:
+                _, meta, _ = self._meta(name)
+                self._activity[name] = user_activity(meta, self.cfg).assign(dataset=name)
+            except Exception as e:
+                log(f"[{name}] SKIPPED: {type(e).__name__}: {str(e).splitlines()[0][:200]}")
+        act = self.write_user_activity()
+        if act is None:
+            raise RuntimeError("No dataset with a user proxy could be loaded.")
+        return act
 
     def detect(self, name: str, turns: pd.DataFrame, s_key: str):
         analysis_only = ("score_threshold", "sensitivity_thresholds")
@@ -92,7 +145,8 @@ class Pipeline:
                           lambda: self._detect_and_stats(turns, stats_path, d_key), self.force)
         stats = pd.read_parquet(stats_path)
         tasks, _ = cached(self.paths.work / f"tasks_{name}.parquet", stable_hash([s_key, self.taxonomy]),
-                          lambda: (detect.tag_tasks(turns, self.taxonomy), {}), self.force)
+                          lambda: (detect.tag_tasks(turns[turns["role"] == "user"], self.taxonomy), {}),
+                          self.force)
         log(f"[{name}] detect: {len(spans):,} stored spans "
             f"({int((~spans['in_placeholder'] & ~spans['is_dummy']).sum()):,} after placeholder/dummy exclusion)")
         return spans, stats, tasks
@@ -165,6 +219,10 @@ class Pipeline:
         for name in self.enabled():
             try:
                 smp, turns, s_key = self.sample(name)
+            except NoUserProxy as e:
+                log(f"[{name}] SKIPPED: {e}")
+                self.manifest["datasets"][name] = {"skipped": "no user proxy (user_level sampling)"}
+                continue
             except Exception as e:  # e.g. gated dataset without accepted terms / login
                 log(f"[{name}] SKIPPED: {type(e).__name__}: {str(e).splitlines()[0][:200]}")
                 self.manifest["datasets"][name] = {"skipped": f"{type(e).__name__}"}
@@ -180,7 +238,16 @@ class Pipeline:
         turns_df = pd.concat(turns_all, ignore_index=True)
 
         self.placeholders(turns_df)
+        self.write_user_activity()
         thr = self.cfg["presidio"]["score_threshold"]
+        # The prevalence tables keep their estimand (user turns). Other roles, when fetched, are
+        # reported separately and serve as context for the LLM detector.
+        if len(self.roles) > 1:
+            report.write_table(analysis.by_role_table(sample, spans_df, self.taxonomy, thr),
+                               self.paths.tables, "prevalence_by_role")
+        turns_df = turns_df[turns_df["role"] == "user"]
+        spans_df = spans_df[spans_df["role"] == "user"].reset_index(drop=True)
+        stats_df = stats_df[stats_df["role"] == "user"].reset_index(drop=True)
         conv = analysis.conversation_indicators(sample, spans_df, self.taxonomy, thr)
         conv = conv.merge(sample[["dataset", "conversation_id", "weight", "stratum"]], on=["dataset", "conversation_id"])
         conv = conv.merge(tasks_df, on=["dataset", "conversation_id"], how="left")

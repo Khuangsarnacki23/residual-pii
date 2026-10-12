@@ -58,6 +58,7 @@ class SafeSpan:
     span_hmac: str
     in_placeholder: bool
     is_dummy: bool
+    role: str = "user"
 
     @property
     def length(self) -> int:
@@ -75,8 +76,27 @@ SAFE_TEXT_COLUMNS = {
     "dataset", "conversation_id", "detector", "entity", "category", "tier", "task_type",
     "stratum", "month", "turn_bucket", "model", "variant", "metric", "placeholder_shape",
     "language", "span_hmac", "user_key", "group", "subset", "pattern", "repo", "revision",
-    "detectors", "dedup_status", "category_label",
+    "detectors", "dedup_status", "category_label", "role", "activity_bucket",
 }
+
+
+def suppress_small_cells(df, n_col: str, value_cols: list[str] | tuple = (), min_n: int = 10):
+    """Small-cell suppression for published tables: where the count in `n_col` is below `min_n`,
+    blank the count and every column derived from it, and flag the row as suppressed."""
+    import pandas as pd
+
+    out = df.copy()
+    small = (out[n_col].fillna(0) < min_n).to_numpy()
+    out[n_col] = out[n_col].astype("Int64").mask(small)
+    for c in value_cols:
+        out[c] = out[c].astype("Float64").mask(small)
+    out["suppressed"] = small
+    return out
+
+
+def safe_count(n: int, min_n: int = 10) -> int | str:
+    """A count for the manifest/methods text: exact when large enough, otherwise only '<min_n'."""
+    return int(n) if n >= min_n else f"<{min_n}"
 
 
 def assert_safe_table(df, where: str) -> None:

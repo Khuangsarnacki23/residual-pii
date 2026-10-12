@@ -133,6 +133,21 @@ def threshold_sensitivity(sample: pd.DataFrame, spans: pd.DataFrame, taxonomy: d
     return pd.DataFrame(rows)
 
 
+def by_role_table(sample: pd.DataFrame, spans: pd.DataFrame, taxonomy: dict, threshold: float) -> pd.DataFrame:
+    """Point prevalence per turn role (user vs assistant), when more than one role was fetched."""
+    rows = []
+    for role in sorted(spans["role"].unique()):
+        ind = conversation_indicators(sample, spans[spans["role"] == role], taxonomy, threshold).merge(
+            sample[["dataset", "conversation_id", "weight"]], on=["dataset", "conversation_id"])
+        cols = [c for c in ind.columns if "::" in c]
+        for ds, g in ind.groupby("dataset"):
+            w = g["weight"].to_numpy(dtype=float)
+            prev = (w @ g[cols].to_numpy(dtype=float)) / w.sum()
+            rows += [{"dataset": ds, "role": role, "detector": c.split("::")[0], "category": c.split("::")[1],
+                      "n_conversations": len(g), "prevalence": p} for c, p in zip(cols, prev)]
+    return pd.DataFrame(rows)
+
+
 def rates_per_1k_tokens(spans: pd.DataFrame, stats: pd.DataFrame, sample: pd.DataFrame,
                         threshold: float = 0.0) -> pd.DataFrame:
     """Design-weighted residual spans per 1,000 whitespace tokens of user text."""

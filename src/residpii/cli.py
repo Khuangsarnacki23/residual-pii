@@ -3,6 +3,7 @@
   residpii run           --config configs/smoke.yaml     # sample -> detect -> analyze -> report
   residpii dedup-corpus  --config configs/default.yaml --confirm   # full lmsys vs Arena overlap
   residpii placeholders  --config configs/smoke.yaml     # discover candidate redaction-placeholder formats
+  residpii user-activity --config configs/user_level.yaml   # users by conversation count (metadata only)
 """
 from __future__ import annotations
 
@@ -32,6 +33,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--datasets", nargs="*", help="Subset of dataset keys to run")
     p.add_argument("--force", action="store_true", help="Ignore cached stage outputs")
 
+    u = sub.add_parser("user-activity", help="Users by conversations-per-user bucket (metadata scan, no text)")
+    u.add_argument("--config", required=True)
+    u.add_argument("--datasets", nargs="*", help="Subset of dataset keys to run")
+    u.add_argument("--force", action="store_true", help="Ignore cached stage outputs")
+
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
     if getattr(args, "datasets", None):
@@ -54,6 +60,11 @@ def main(argv: list[str] | None = None) -> int:
         # Shapes only (digits collapsed, k-thresholded), so this is safe to print.
         disc = Pipeline(cfg, force=args.force).discover_placeholders()
         print(disc.to_string(index=False) if len(disc) else "No candidate placeholder shapes found.")
+        return 0
+
+    if args.cmd == "user-activity":
+        cfg["sampling"]["mode"] = "user_level"
+        print(Pipeline(cfg, force=args.force).user_activity_only().to_string(index=False))
         return 0
     return 1
 

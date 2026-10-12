@@ -1,0 +1,9 @@
+# User-level run: a uniform sample of users with >= min_conversations, all their conversations
+# (up to the cap) kept together. Needs the full metadata scan to count conversations per user.
+extends: default.yaml
+run_name: user_level
+
+roles: [user, assistant]
+
+sampling:
+  mode: user_level
