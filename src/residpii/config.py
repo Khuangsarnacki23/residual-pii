@@ -30,6 +30,8 @@ def load_config(path: str | Path) -> dict[str, Any]:
     if parent:
         cfg = _deep_merge(load_config(path.parent / parent), cfg)
     cfg.setdefault("taxonomy_path", str(path.parent / "taxonomy.yaml"))
+    cfg.setdefault("prompts_dir", str(path.parent / "prompts"))
+    cfg.setdefault("coarsening_path", str(path.parent / "coarsening.yaml"))
     return cfg
 
 

@@ -78,6 +78,10 @@ SAFE_TEXT_COLUMNS = {
     "stratum", "month", "turn_bucket", "model", "variant", "metric", "placeholder_shape",
     "language", "span_hmac", "user_key", "group", "subset", "pattern", "repo", "revision",
     "detectors", "dedup_status", "category_label", "role", "activity_bucket",
+    # Closed label sets from the LLM schema (llm.ATTRIBUTE_TYPES / EVIDENCE / ABOUT); never values.
+    "attribute_type", "evidence", "about", "backend", "prompt_version",
+    # Profile dimension names and coarsening labels (profiles.DIMENSIONS / LEVELS); never values.
+    "attribute", "level", "combination", "ci_kind",
 }
 
 

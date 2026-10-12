@@ -94,6 +94,34 @@ secrets:
 selfid:
   enabled: true
 
+# LLM detector for quasi-identifiers (stated and inferred). Off by default.
+# The local backend keeps user text on this machine. A hosted backend sends it to a third party:
+# the run aborts unless allow_hosted is true, and that needs the dataset terms, the instructor/IRB
+# and both partners to agree.
+llm:
+  enabled: false
+  backend: ollama            # ollama | anthropic | openai
+  model: llama3.1:8b         # e.g. qwen2.5:7b-instruct; for a hosted backend, a current model name
+  allow_hosted: false        # MUST be true for anthropic/openai (or a non-local ollama_url)
+  ollama_url: http://localhost:11434/api/chat
+  temperature: 0             # not sent to the anthropic backend, whose current models reject it
+  anthropic_effort: low      # anthropic backend only; null for models without the effort setting
+  max_turn_chars: 6000       # longer turns are cut here; the count is in llm_run_stats.csv
+  max_context_chars: 1500    # the preceding turn, given as context only
+  sample_turns: 2000         # LLM runs on a subsample (whole users in user_level mode); null = all
+  concurrency: 1             # >1 only for hosted backends
+  timeout_s: 300
+  prompt_version: v1         # configs/prompts/qi_extract_<version>.txt
+  min_confidence: 0.6        # attributes below this are left out of per-user profiles
+
+# Per-user uniqueness of coarsened quasi-identifier profiles (needs llm.enabled).
+uniqueness:
+  max_combination_size: 4
+  # Uniqueness is measured within the sample and falls as the sample grows; these subsample sizes
+  # (those smaller than the sample) are reported alongside the full sample to show the trend.
+  sample_sizes: [500, 1000, 2000]
+  subsample_draws: 20
+
 analysis:
   bootstrap_reps: 1000
   ci_level: 0.95
