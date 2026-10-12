@@ -138,7 +138,7 @@ class Pipeline:
     def detect(self, name: str, turns: pd.DataFrame, s_key: str):
         analysis_only = ("score_threshold", "sensitivity_thresholds")
         pcfg = {k: v for k, v in self.cfg["presidio"].items() if k not in analysis_only}
-        d_key = stable_hash([s_key, pcfg, self.cfg.get("secrets"), self.cfg["placeholders"],
+        d_key = stable_hash([s_key, pcfg, self.cfg.get("secrets"), self.cfg.get("selfid"), self.cfg["placeholders"],
                              self.taxonomy, PIPELINE_VERSION])
         stats_path = self.paths.work / f"turnstats_{name}.parquet"
         spans, _ = cached(self.paths.restricted / f"spans_{name}.parquet", d_key,

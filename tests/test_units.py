@@ -4,7 +4,7 @@ import pandas as pd
 from residpii import dedup
 from residpii.analysis import weighted_prevalence
 from residpii.config import REPO_ROOT, load_config, load_taxonomy
-from residpii.detect import is_dummy, secret_matches, tag_tasks
+from residpii.detect import is_dummy, secret_matches, selfid_matches, tag_tasks
 from residpii.redactions import compile_patterns, discover, matches_configured
 from residpii.safety import assert_safe_table, keyed_hash
 from residpii.sampling import (NoUserProxy, _proportional_allocation, turn_bucket, user_activity,
@@ -203,3 +203,35 @@ def test_roles_select_turns():
     both = src.fetch_turns(meta, ("user", "assistant"))
     assert list(both["role"]) == ["user", "assistant", "user"]
     assert list(both["turn_index"]) == [0, 1, 2]
+
+
+# ---------------------------------------------------------------- self-introductions
+
+
+def _selfid(text: str) -> list[str]:
+    return [text[s:e] for s, e, _ in selfid_matches(text)]
+
+
+def test_selfid_positives():
+    assert _selfid("Hi, my name is Ada Lovelace and I need help.") == ["Ada Lovelace"]
+    assert _selfid("my name's Grace") == ["Grace"]
+    assert _selfid("You can call me Tariq.") == ["Tariq"]
+    assert _selfid("Hello, this is Mei Ling speaking, I called earlier") == ["Mei Ling"]
+    assert _selfid("I'm Priya, a nurse from Leeds.") == ["Priya"]
+    assert _selfid("i am Juan Carlos Ortega") == ["Juan Carlos Ortega"]
+    # At most three tokens, and a stoplisted word ends the name.
+    assert _selfid("My name is Anna Maria Della Rovere") == ["Anna Maria Della"]
+    assert _selfid("My name is Omar From Cairo") == ["Omar"]
+
+
+def test_selfid_negatives():
+    for text in ["I'm Sorry to bother you", "I'm Happy with that", "I'm Not sure", "I am American.",
+                 "I'm Muslim and I fast", "i'm tired", "my name is unknown", "Call me Maybe",
+                 "call me back later", "I'm Working On A Project", "I'm Batman fighting crime",
+                 "This is Sparta", "this is John's book"]:
+        assert _selfid(text) == [], text
+
+
+def test_selfid_dummy_names():
+    assert is_dummy("SELF_NAME", "John Doe") and is_dummy("SELF_NAME", "DAN")
+    assert not is_dummy("SELF_NAME", "Ada Lovelace")

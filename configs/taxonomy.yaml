@@ -1,7 +1,7 @@
 # Maps detector entity labels onto the three-tier taxonomy.
 # Tier "sensitive" (Trust No Bot-style topics) needs a contextual detector (LLM) and is empty for now.
 categories:
-  name:             {tier: direct, labels: [PERSON]}
+  name:             {tier: direct, labels: [PERSON, SELF_NAME]}   # SELF_NAME: selfid detector
   email:            {tier: direct, labels: [EMAIL_ADDRESS]}
   phone:            {tier: direct, labels: [PHONE_NUMBER]}
   account_id:       {tier: direct, labels: [CREDIT_CARD, IBAN_CODE, US_SSN, US_BANK_NUMBER, US_PASSPORT,

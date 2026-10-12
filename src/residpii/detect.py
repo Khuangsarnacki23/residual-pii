@@ -3,6 +3,7 @@
 Families are kept separate (the `detector` field):
   presidio : Presidio AnalyzerEngine with spaCy NER + built-in pattern recognizers
   secrets  : regexes for API keys, tokens, private keys and hard-coded passwords
+  selfid   : self-introductions ("my name is X"); a name the user gives as their own
 
 Raw span text is used in-process for exactly two things: the keyed hash and the
 dummy/placeholder-value check (`is_dummy`). Neither the text nor the matched value is returned.
@@ -51,7 +52,7 @@ def is_dummy(entity: str, value: str) -> bool:
     low = v.casefold()
     if _PLACEHOLDERISH.search(v) or _PLACEHOLDER_WHOLE.fullmatch(v):
         return True
-    if entity == "PERSON":
+    if entity in ("PERSON", "SELF_NAME"):
         return low in _DUMMY_NAMES or v == "DAN"   # "DAN" = widely shared jailbreak persona
     if entity == "EMAIL_ADDRESS":
         return low.rsplit("@", 1)[-1] in _DUMMY_EMAIL_DOMAINS
@@ -98,6 +99,62 @@ def secret_matches(text: str) -> Iterable[tuple[int, int, str]]:
         for m in pat.finditer(text):
             s, e = m.span(group)
             yield s, e, "SECRET_TOKEN"
+
+
+# ---------------------------------------------------------------- self-introductions
+
+# A name is 1-3 capitalized tokens. The trigger is case-insensitive; the name is not, because
+# capitalization is the only thing separating "I'm Dana" from "I'm done".
+_NAME = r"[A-Z][A-Za-z'’\-]+(?:[ \t]+[A-Z][A-Za-z'’\-]+){0,2}"
+_SELFID_PATTERNS: list[tuple[re.Pattern, bool]] = [   # (pattern, needs a clean right-hand boundary)
+    (re.compile(rf"\b(?i:my (?:(?:full|first|last|real|given) )?name(?: is|'s|’s))[ \t]+({_NAME})"), False),
+    (re.compile(rf"\b(?i:(?:you can |please |just )?call me)[ \t]+({_NAME})"), False),
+    (re.compile(rf"\b(?i:this is)[ \t]+({_NAME})(?=[ \t]+(?i:speaking|here)\b)"), False),
+    # "I'm X" is the noisy one ("I'm Sorry", "I'm American"), so it also needs the name to end the clause.
+    (re.compile(rf"\b(?i:i am|i'm|i’m)[ \t]+({_NAME})"), True),
+]
+_SELFID_BOUNDARY = re.compile(r"\s*(?:$|[.,!?;:)\n]|(?i:and|from|here|speaking)\b)")
+# Capitalized words that follow "I'm"/"call me" without being a name: sentence-case and title-case
+# text, plus nationalities, religions and other proper adjectives (those belong to the nrp category).
+_SELFID_STOP = {w.casefold() for w in """
+    a an the not no so too very really just also still now here there back in on at up out off from
+    sorry happy sad glad sure fine good great ok okay well ready done new old able afraid alone aware
+    angry bored busy confused curious excited tired hungry lost late early free open single married
+    pregnant sick ill hurt scared worried nervous proud grateful thankful interested looking going
+    trying working writing using having getting making doing thinking wondering asking planning
+    building learning studying creating feeling struggling hoping running living coming
+    maybe later tomorrow today anything something nothing everyone someone anyone crazy stupid
+    sir madam mr mrs ms miss dr doctor professor captain god lord king queen master daddy mommy
+    american british english french german spanish italian chinese japanese korean indian russian
+    canadian australian mexican brazilian irish scottish welsh dutch swedish polish turkish greek
+    african asian european arab arabic persian iranian israeli pakistani nigerian filipino thai
+    vietnamese indonesian egyptian ukrainian portuguese hispanic latino latina black white
+    christian catholic protestant muslim jewish hindu buddhist atheist agnostic mormon sikh
+    gay lesbian bisexual trans transgender straight vegan vegetarian democrat republican
+    monday tuesday wednesday thursday friday saturday sunday
+""".split()}
+
+
+def selfid_matches(text: str) -> Iterable[tuple[int, int, str]]:
+    """Spans of names the writer introduces as their own. Yields (start, end, "SELF_NAME")."""
+    seen = set()
+    for pat, needs_boundary in _SELFID_PATTERNS:
+        for m in pat.finditer(text):
+            s, e = m.span(1)
+            tokens = list(re.finditer(r"\S+", text[s:e]))
+            if tokens[0].group().casefold() in _SELFID_STOP:
+                continue
+            # A stoplisted word after the name is the start of the next clause, not a surname.
+            for i, tok in enumerate(tokens):
+                if tok.group().casefold() in _SELFID_STOP:
+                    tokens = tokens[:i]
+                    break
+            e = s + tokens[-1].end()
+            if needs_boundary and not _SELFID_BOUNDARY.match(text, e):
+                continue
+            if (s, e) not in seen:
+                seen.add((s, e))
+                yield s, e, "SELF_NAME"
 
 
 # ---------------------------------------------------------------- presidio
@@ -186,6 +243,13 @@ def detect(turns: pd.DataFrame, cfg: dict, taxonomy: dict, key: bytes) -> tuple[
             for s, e, ent in secret_matches(text[:max_chars]):
                 found[(row, s, e, "secrets", ent)] = 1.0
 
+    if cfg.get("selfid", {}).get("enabled", True):
+        # Only user turns: an assistant saying "I'm Claude" is not a user identifying themselves.
+        for row, (role, text) in enumerate(turns[["role", "text"]].itertuples(index=False)):
+            if role == "user":
+                for s, e, ent in selfid_matches(text[:max_chars]):
+                    found[(row, s, e, "selfid", ent)] = 1.0
+
     meta = turns[["dataset", "conversation_id", "turn_index", "role"]].to_numpy()
     texts = turns["text"].to_numpy()
     spans = []
@@ -195,7 +259,8 @@ def detect(turns: pd.DataFrame, cfg: dict, taxonomy: dict, key: bytes) -> tuple[
         in_ph = any(s < pe and ps < e for ps, pe in ph_by_row[row])
         ds, cid, tidx, role = meta[row]
         spans.append(SafeSpan(ds, cid, int(tidx), s, e, det, ent, category, tier, round(score, 4),
-                              keyed_hash(key, value), in_ph, is_dummy(ent, value), role=role).to_row())
+                              keyed_hash(key, value), in_ph, is_dummy(ent, value), role=role,
+                              about_user=True if det == "selfid" else None).to_row())
     span_cols = list(SafeSpan.__dataclass_fields__) + ["length"]
     stats_df = pd.concat([turns[["dataset", "conversation_id", "turn_index", "role"]].reset_index(drop=True),
                           pd.DataFrame(stats)], axis=1)

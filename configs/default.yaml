@@ -90,6 +90,10 @@ presidio:
 secrets:
   enabled: true
 
+# Rule-based self-introductions ("my name is X", "call me X"); reported as detector `selfid`.
+selfid:
+  enabled: true
+
 analysis:
   bootstrap_reps: 1000
   ci_level: 0.95

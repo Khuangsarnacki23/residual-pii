@@ -87,7 +87,7 @@ def figures(prev: pd.DataFrame, by_task: pd.DataFrame, taxonomy: dict, fig_dir: 
     if not p.empty:
         dot_ci_panels(p, "category", "variant", ["all", "excl_story_roleplay"], VARIANT_LABELS, cats,
                       "Conversations with ≥1 residual detection", fig_dir / "prevalence_by_category",
-                      "Residual detections by category (Presidio + secrets, design-weighted, 95% bootstrap CI)")
+                      "Residual detections by category (all rule-based detectors, design-weighted, 95% bootstrap CI)")
         made.append("prevalence_by_category")
     t = by_task[(by_task["detector"] == "any") & (by_task["category"] == "tier_direct")]
     if not t.empty:

@@ -118,6 +118,20 @@ def test_no_canary_leaks_outside_restricted(run):
     _assert_no_canaries(pipe, console)
 
 
+def test_selfid_detector_reported_separately(run):
+    pipe, _, _ = run
+    spans = pd.read_parquet(pipe.paths.restricted / "spans_wildchat.parquet")
+    own = spans[spans["detector"] == "selfid"]
+    # "my name is <canary name>" is tagged as the user's own name; other detectors leave about_user unset.
+    assert len(own) and (own["entity"] == "SELF_NAME").all() and own["about_user"].eq(True).all()
+    assert (own["category"] == "name").all() and (own["tier"] == "direct").all()
+    assert spans.loc[spans["detector"] != "selfid", "about_user"].isna().all()
+    prev = pd.read_csv(pipe.paths.tables / "prevalence.csv")
+    row = prev[(prev.dataset == "wildchat") & (prev.variant == "all") & (prev.detector == "selfid")
+               & (prev.category == "name")]
+    assert row["n_positive"].iloc[0] > 0
+
+
 def test_span_store_has_no_text(run):
     pipe, _, _ = run
     spans = pd.read_parquet(pipe.paths.restricted / "spans_wildchat.parquet")

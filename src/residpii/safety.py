@@ -59,6 +59,7 @@ class SafeSpan:
     in_placeholder: bool
     is_dummy: bool
     role: str = "user"
+    about_user: bool | None = None   # True when the detector knows the span describes the speaker
 
     @property
     def length(self) -> int:
