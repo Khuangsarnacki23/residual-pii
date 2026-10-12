@@ -4,12 +4,14 @@ All "PII" below is fabricated: reserved 555 numbers, the long-invalidated Woolwo
 test cards, made-up names. The canary check asserts that none of it reaches any file outside the
 restricted directory, nor stdout/stderr.
 """
+import json
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from residpii.config import REPO_ROOT, load_config
+from residpii import llm
 from residpii.pipeline import Pipeline
 from residpii.safety import load_or_create_key
 from residpii.sources import InMemorySource
@@ -207,3 +209,91 @@ def test_user_level_tables(user_run):
     spans = pd.read_parquet(pipe.paths.restricted / "spans_wildchat.parquet")
     assert (spans.loc[spans["role"] == "assistant", "entity"] == "PERSON").any()
     _assert_no_canaries(pipe, console)
+
+
+# ---------------------------------------------------------------- LLM stage -> profiles -> uniqueness
+
+
+def _fake_llm(system: str, user: str) -> str:
+    """Canned extraction keyed on the turn text. Values deliberately carry canaries: they may exist
+    in the restricted directory and nowhere else."""
+    turn = user.split("USER TURN:", 1)[1]
+
+    def attr(typ, value, evidence="stated", about="user", confidence=0.9, **extra):
+        return {"type": typ, "value": value, "evidence": evidence, "about": about, "confidence": confidence,
+                "occupation_group": "", "occupation_minor_group": "", **extra}
+
+    if "Translate" in turn:
+        return "Sure! Here is the JSON you asked for"            # malformed -> retried -> failure
+    attrs = []
+    if "cover letter" in turn:
+        attrs += [attr("occupation", "nurse at Brisvale Unity Hospital", occupation_group="29",
+                       occupation_minor_group="29-1"),
+                  attr("other", "is called Quillon Varnadore"), attr("gender", "man", evidence="inferred")]
+    if "SSN" in turn:
+        attrs += [attr("city", "Denver"), attr("age", "34"), attr("school", "Brisvale Unity Hospital college")]
+    if "knight" in turn:
+        attrs += [attr("occupation", "knight", about="fictional")]
+    if "python" in turn:
+        attrs += [attr("occupation", "software developer", evidence="inferred", confidence=0.7)]
+    return json.dumps({"attributes": attrs})
+
+
+@pytest.fixture()
+def llm_run(tmp_path, capfd):
+    cfg = load_config(REPO_ROOT / "configs" / "user_level_smoke.yaml")
+    cfg.update(run_name="ltest", data_root=str(tmp_path / "data"), results_dir=str(tmp_path / "results"))
+    cfg["analysis"]["bootstrap_reps"] = 50
+    cfg["llm"].update(enabled=True, sample_turns=None)
+    cfg["user_level"]["min_conversations"] = 2
+    key = load_or_create_key(Path(cfg["data_root"]))
+    sources = {"wildchat": InMemorySource("wildchat", _user_convs("wildchat"), key)}
+    pipe = Pipeline(cfg, sources=sources, llm_backend=llm.CallableBackend(_fake_llm))
+    manifest = pipe.run(do_dedup=False)
+    out, err = capfd.readouterr()
+    return pipe, manifest, out + err
+
+
+def test_llm_stage_outputs(llm_run):
+    pipe, manifest, _ = llm_run
+    t = pipe.paths.tables
+    stats = pd.read_csv(t / "llm_run_stats.csv").iloc[0]
+    assert stats["backend"] == "fake" and stats["failures"] > 0 and stats["turns_processed"] > stats["failures"]
+    assert manifest["llm"]["hosted"] is False and manifest["llm"]["failures"] == stats["failures"]
+
+    prev = pd.read_csv(t / "llm_attribute_prevalence.csv")
+    assert set(prev["attribute_type"]) == {*llm.ATTRIBUTE_TYPES, "any"}
+    assert set(prev["evidence"]) == {*llm.EVIDENCE, "any"} and set(prev["about"]) == {*llm.ABOUT, "any"}
+    row = prev[(prev.attribute_type == "occupation") & (prev.evidence == "any") & (prev.about == "user")].iloc[0]
+    assert row["n_users"] >= 10 and 0 < row["share_users"] <= 1
+    assert prev.loc[prev["suppressed"], "n_users"].isna().any()
+
+    # Raw values and profiles exist, and only under restricted/.
+    attrs = pd.read_parquet(pipe.paths.restricted / "llm_attrs_wildchat.parquet")
+    assert attrs["value"].str.contains("Brisvale").any()
+    prof = pd.read_parquet(pipe.paths.restricted / "profiles_wildchat.parquet")
+    assert prof["user"].nunique() == 13 and set(prof["variant"]) == {"stated_only", "stated_plus_inferred"}
+    # Coarsened to SOC codes (a nurse/developer tie across conversations is `ambiguous`), never the raw title.
+    assert (prof["occupation_group"].dropna().isin(["29", "29-1", "15", "15-1", "ambiguous"])).all()
+    assert prof.loc[prof["variant"] == "stated_only", "gender"].isna().all()       # gender was only inferred
+    for root in (pipe.paths.results, pipe.paths.work):
+        assert not [f.name for f in root.rglob("*") if "profiles" in f.name or "llm_attrs" in f.name
+                    or "llm_cache" in f.name]
+
+    for name in ("profile_summary", "uniqueness_by_combination", "uniqueness_by_activity", "uniqueness_summary"):
+        assert (t / f"{name}.csv").exists(), name
+    summ = pd.read_csv(t / "uniqueness_summary.csv")
+    assert summ["share_unique"].notna().any()
+    assert (pipe.paths.figures / "uniqueness_by_n_qi_wildchat.png").exists()
+    assert "uniqueness_by_n_qi_wildchat" in manifest["figures"]
+
+
+def test_llm_values_never_leave_restricted(llm_run):
+    pipe, _, console = llm_run
+    _assert_no_canaries(pipe, console)
+    # Coarsened values are personal data too: none may appear in a published table.
+    for f in pipe.paths.tables.glob("*.csv"):
+        text = f.read_text().casefold()
+        for value in ("colorado", "us_west", "30-39", "nurse", "software developer"):
+            assert value not in text, f"profile value leaked into {f.name}"
+    assert "Denver" not in console and "nurse" not in console

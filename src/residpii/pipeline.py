@@ -13,7 +13,7 @@ from typing import Callable
 
 import pandas as pd
 
-from . import analysis, dedup, detect, redactions, report
+from . import analysis, dedup, detect, llm, profiles, redactions, report, uniqueness
 from .config import Paths, load_taxonomy, stable_hash
 from .safety import load_or_create_key, safe_count, suppress_small_cells
 from .sampling import NoUserProxy, eligible, stratified_sample, user_activity, user_level_sample
@@ -40,7 +40,7 @@ def cached(path: Path, key: str, fn: Callable[[], tuple[pd.DataFrame, dict]], fo
 
 
 class Pipeline:
-    def __init__(self, cfg: dict, sources: dict | None = None, force: bool = False):
+    def __init__(self, cfg: dict, sources: dict | None = None, force: bool = False, llm_backend=None):
         self.cfg = cfg
         self.paths = Paths(cfg).ensure()
         self.key = load_or_create_key(self.paths.data_root)
@@ -58,6 +58,10 @@ class Pipeline:
                                "config_hash": stable_hash(cfg), "sampling_mode": self.mode,
                                "roles": list(self.roles), "datasets": {}}
         self._activity: dict[str, pd.DataFrame] = {}
+        self.llm_enabled = bool(cfg.get("llm", {}).get("enabled"))
+        self._llm_backend = llm_backend          # injected by tests; otherwise built from the config
+        if self.llm_enabled and llm_backend is None:
+            llm.check_backend_allowed(cfg["llm"])   # fail before any work if a hosted backend is not allowed
 
     # ------------------------------------------------------------------ helpers
     def enabled(self) -> list[str]:
@@ -156,6 +160,56 @@ class Pipeline:
         stats.to_parquet(stats_path, index=False)
         return spans, {}
 
+    def llm_backend(self):
+        if self._llm_backend is None:
+            self._llm_backend = llm.make_backend(self.cfg["llm"])
+        return self._llm_backend
+
+    def llm_extract(self, name: str, smp: pd.DataFrame, turns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """LLM quasi-identifier extraction on a subsample of user turns. Values stay in restricted/."""
+        lcfg = self.cfg["llm"]
+        selected = llm.select_turns(turns, smp, lcfg, self.seed(name), whole_users=self.mode == "user_level")
+        attrs, turn_log = llm.extract(selected, lcfg, llm.load_prompt(self.cfg), self.llm_backend(), self.key,
+                                      self.paths.restricted / f"llm_cache_{name}.jsonl")
+        attrs.to_parquet(self.paths.restricted / f"llm_attrs_{name}.parquet", index=False)
+        turn_log.to_parquet(self.paths.work / f"llm_turns_{name}.parquet", index=False)
+        log(f"[{name}] llm: {len(turn_log):,} turns, {int((turn_log['status'] != 'ok').sum()):,} failures, "
+            f"{len(attrs):,} attributes")
+        return attrs, turn_log
+
+    def identifiability(self, sample: pd.DataFrame, attrs: pd.DataFrame, turn_log: pd.DataFrame) -> list[str]:
+        """LLM aggregates -> per-user profiles (restricted) -> uniqueness tables and figure."""
+        t, lcfg, backend = self.paths.tables, self.cfg["llm"], self.llm_backend()
+        report.write_table(llm.attribute_prevalence(attrs, turn_log, sample, self.min_cell), t,
+                           "llm_attribute_prevalence")
+        stats = llm.run_stats(turn_log, backend, lcfg)
+        report.write_table(stats, t, "llm_run_stats")
+        self.manifest["llm"] = {"backend": backend.name, "model": backend.model,
+                                "hosted": backend.name in llm.HOSTED_BACKENDS,
+                                "prompt_version": lcfg["prompt_version"],
+                                "prompt_sha": llm.load_prompt(self.cfg).sha,
+                                "turns_processed": int(stats["turns_processed"].sum()),
+                                "failures": int(stats["failures"].sum())}
+
+        # Profiles need a user to attach to; datasets without a user proxy stop at the tables above.
+        with_proxy = sample.groupby("dataset")["user_key"].agg(lambda s: s.notna().any())
+        keep = [ds for ds in turn_log["dataset"].unique() if with_proxy.get(ds, False)]
+        prof = profiles.build_profiles(attrs[attrs["dataset"].isin(keep)], turn_log[turn_log["dataset"].isin(keep)],
+                                       sample, profiles.load_coarsener(self.cfg), float(lcfg["min_confidence"]))
+        for ds, g in prof.groupby("dataset"):
+            g.to_parquet(self.paths.restricted / f"profiles_{ds}.parquet", index=False)
+        if prof.empty:
+            log("[uniqueness] SKIPPED: no dataset with a user proxy was processed by the LLM")
+            return []
+        report.write_table(profiles.profile_summary(prof, self.min_cell), t, "profile_summary")
+        by_combo, by_activity, summary = uniqueness.analyze(prof, self.cfg.get("uniqueness", {}),
+                                                            self.cfg["analysis"], self.cfg["seed"], self.min_cell)
+        report.write_table(by_combo, t, "uniqueness_by_combination")
+        report.write_table(by_activity, t, "uniqueness_by_activity")
+        report.write_table(summary, t, "uniqueness_summary")
+        log(f"[uniqueness] {prof['user'].nunique():,} users, {len(by_combo):,} combination rows")
+        return report.uniqueness_figures(summary, self.paths.figures)
+
     def dedup_sample(self, lmsys_turns: pd.DataFrame) -> pd.DataFrame:
         """lmsys sample vs the full English Arena corpus (Arena is ~40 MB, so this is cheap)."""
         arena = self.source("arena", scan={})
@@ -215,7 +269,7 @@ class Pipeline:
 
     # ------------------------------------------------------------------ end to end
     def run(self, do_dedup: bool = True) -> dict:
-        samples, spans, stats, tasks, turns_all = [], [], [], [], []
+        samples, spans, stats, tasks, turns_all, llm_attrs, llm_logs = [], [], [], [], [], [], []
         for name in self.enabled():
             try:
                 smp, turns, s_key = self.sample(name)
@@ -229,6 +283,9 @@ class Pipeline:
                 continue
             sp, st, tk = self.detect(name, turns, s_key)
             samples.append(smp), spans.append(sp), stats.append(st), tasks.append(tk), turns_all.append(turns)
+            if self.llm_enabled:
+                attrs, turn_log = self.llm_extract(name, smp, turns)
+                llm_attrs.append(attrs), llm_logs.append(turn_log)
         if not samples:
             raise RuntimeError("No dataset could be loaded.")
         sample = pd.concat(samples, ignore_index=True)
@@ -262,10 +319,14 @@ class Pipeline:
             except Exception as e:
                 log(f"[dedup] SKIPPED: {type(e).__name__}: {str(e).splitlines()[0][:200]}")
 
-        self.analyze(conv, sample, spans_df, stats_df)
+        extra_figures = []
+        if llm_logs:
+            extra_figures = self.identifiability(sample, pd.concat(llm_attrs, ignore_index=True),
+                                                 pd.concat(llm_logs, ignore_index=True))
+        self.analyze(conv, sample, spans_df, stats_df, extra_figures)
         return self.manifest
 
-    def analyze(self, conv, sample, spans_df, stats_df) -> None:
+    def analyze(self, conv, sample, spans_df, stats_df, extra_figures: list[str] | None = None) -> None:
         seed, t = self.cfg["seed"], self.paths.tables
         prev = analysis.prevalence_table(conv, self.cfg, seed)
         report.write_table(prev, t, "prevalence")
@@ -284,7 +345,7 @@ class Pipeline:
             ov = (conv[conv["dataset"] == "lmsys"]["dedup_status"].fillna("unique")
                   .value_counts().rename_axis("dedup_status").reset_index(name="n_conversations"))
             report.write_table(ov, t, "lmsys_arena_overlap")
-        made = report.figures(prev, by_task, self.taxonomy, self.paths.figures)
+        made = report.figures(prev, by_task, self.taxonomy, self.paths.figures) + (extra_figures or [])
         report.methods_summary(self.cfg, self.manifest, self.paths.results)
         report.disclosure_drafts(prev, self.manifest, self.paths.results / "disclosure")
         self.manifest["figures"] = made

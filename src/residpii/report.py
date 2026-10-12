@@ -99,6 +99,50 @@ def figures(prev: pd.DataFrame, by_task: pd.DataFrame, taxonomy: dict, fig_dir: 
     return made
 
 
+VARIANT_COLORS = {"stated_only": "#2a78d6", "stated_plus_inferred": "#eb6834"}   # palette slots 1-2
+PROFILE_VARIANT_LABELS = {"stated_only": "Stated only", "stated_plus_inferred": "Stated + inferred"}
+LEVEL_LABELS = {"fine": "Fine coarsening", "coarse": "Coarse coarsening"}
+
+
+def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path) -> list[str]:
+    """Share of sampled users unique on >= 1 combination, against the number of quasi-identifiers.
+    One line per profile variant, one panel per coarsening level, one file per dataset."""
+    made = []
+    full = summary[(summary["ci_kind"] == "bootstrap_users") & summary["share_unique"].notna()]
+    for ds, d in full.groupby("dataset"):
+        levels = [lv for lv in LEVEL_LABELS if lv in set(d["level"])]
+        fig, axes = plt.subplots(1, len(levels), figsize=(4.4 * len(levels) + 0.6, 3.4), sharey=True, squeeze=False)
+        for ax, level in zip(axes[0], levels):
+            for variant, color in VARIANT_COLORS.items():
+                v = d[(d["level"] == level) & (d["variant"] == variant)].sort_values("n_qi")
+                if v.empty:
+                    continue
+                ax.fill_between(v["n_qi"], v["ci_low"], v["ci_high"], color=color, alpha=0.15, linewidth=0)
+                ax.plot(v["n_qi"], v["share_unique"], color=color, linewidth=2, marker="o", markersize=6,
+                        markeredgecolor="white", markeredgewidth=1.5, label=PROFILE_VARIANT_LABELS[variant])
+            ax.set_title(LEVEL_LABELS[level], fontsize=10, color=TEXT_PRIMARY, loc="left")
+            ax.set_xticks(sorted(d["n_qi"].unique()))
+            ax.set_xlabel("Quasi-identifiers combined (up to)", fontsize=9)
+            ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
+            ax.set_ylim(0, max(0.05, float(d["ci_high"].max()) * 1.1))
+            _style(ax)
+            ax.grid(axis="x", visible=False)
+            ax.grid(axis="y", color=GRID, linewidth=0.8)
+        axes[0][0].set_ylabel("Sampled users unique on ≥1 combination", fontsize=9, color=TEXT_SECONDARY)
+        handles, labels = axes[0][0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="upper right", ncol=2, frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
+        n = int(d["sample_users"].iloc[0])
+        fig.suptitle(f"{DATASET_LABELS.get(ds, ds)}: within-sample uniqueness (n = {n:,} users, 95% bootstrap CI)",
+                     x=0.01, ha="left", fontsize=11, color=TEXT_PRIMARY)
+        fig.tight_layout(rect=(0, 0, 1, 0.92))
+        name = f"uniqueness_by_n_qi_{ds}"
+        for ext in ("png", "pdf"):
+            fig.savefig((fig_dir / name).with_suffix(f".{ext}"), dpi=200)
+        plt.close(fig)
+        made.append(name)
+    return made
+
+
 METHODS_TEMPLATE = """# Methods summary (auto-generated {today}; adapt before use)
 
 ## Data
