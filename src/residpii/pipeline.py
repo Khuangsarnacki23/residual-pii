@@ -139,9 +139,25 @@ class Pipeline:
         return out
 
     def placeholders(self, all_turns: pd.DataFrame) -> pd.DataFrame:
-        disc = redactions.discover(all_turns)
+        k = self.cfg["placeholders"].get("discovery_min_conversations", 5)
+        disc = redactions.discover(all_turns, min_conversations=k)
+        patterns = {ds: redactions.compile_patterns(self.cfg, ds) for ds in disc["dataset"].unique()}
+        disc["configured"] = [redactions.matches_configured(shp, patterns[ds])
+                              for ds, shp in zip(disc["dataset"], disc["placeholder_shape"])]
         report.write_table(disc, self.paths.tables, "placeholder_shapes")
         return disc
+
+    def discover_placeholders(self) -> pd.DataFrame:
+        """Placeholder-format discovery on the sampled turns, without running any detector."""
+        turns = []
+        for name in self.enabled():
+            try:
+                turns.append(self.sample(name)[1])
+            except Exception as e:
+                log(f"[{name}] SKIPPED: {type(e).__name__}: {str(e).splitlines()[0][:200]}")
+        if not turns:
+            raise RuntimeError("No dataset could be loaded.")
+        return self.placeholders(pd.concat(turns, ignore_index=True))
 
     # ------------------------------------------------------------------ end to end
     def run(self, do_dedup: bool = True) -> dict:

@@ -48,6 +48,7 @@ def run(tmp_path, capfd):
     # Treat "Denver" as a pre-existing placeholder so the overlap-exclusion path is exercised
     # (Presidio itself never tags NAME_1-style tokens).
     cfg["placeholders"]["wildchat"] = [r"\bDenver\b"]
+    cfg["placeholders"]["discovery_min_conversations"] = 2
     key = load_or_create_key(Path(cfg["data_root"]))
     sources = {name: InMemorySource(name, _convs(name, 30), key) for name in ("wildchat", "arena")}
     pipe = Pipeline(cfg, sources=sources)
@@ -76,6 +77,14 @@ def test_placeholders_and_dummies_excluded(run):
     assert spans["is_dummy"].any()                # example.com, 555-0100
     red = pd.read_csv(pipe.paths.tables / "existing_redactions.csv").set_index("dataset")
     assert red.loc["wildchat", "share_with_placeholder"] > 0
+
+
+def test_placeholder_discovery_command(run):
+    pipe, _, _ = run
+    disc = pipe.discover_placeholders().set_index(["dataset", "placeholder_shape"])
+    assert disc.loc[("wildchat", "NAME_#"), "configured"]
+    assert disc.loc[("wildchat", "NAME_#"), "conversations"] >= 2
+    assert (pipe.paths.tables / "placeholder_shapes.csv").exists()
 
 
 def test_one_conversation_per_user(run):

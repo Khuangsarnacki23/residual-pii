@@ -43,6 +43,8 @@ sampling:
 # are excluded from residual counts; placeholder frequency is reported separately.
 # Run `residpii placeholders` to discover candidate formats before trusting these.
 placeholders:
+  # Discovery only reports a token shape seen in at least this many distinct conversations.
+  discovery_min_conversations: 5
   common:
     - '\bNAME_\d+\b'
     - '\bPRESIDIO_ANONYMIZED_[A-Z_]+\b'

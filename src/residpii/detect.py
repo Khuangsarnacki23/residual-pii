@@ -38,14 +38,18 @@ _DUMMY_NAMES = {"john doe", "jane doe", "user", "username", "your name", "first 
                 "gpt", "gpt-3", "gpt-4", "assistant"}
 _TEST_CARDS = {"4111111111111111", "4242424242424242", "5555555555554444", "378282246310005",
                "6011111111111117", "4000056655665556"}
-_PLACEHOLDERISH = re.compile(r"(?i)x{4,}|\*{4,}|\.{3}|<[^>]*>|your[_\- ]?(?:api|key|token|secret|password)|"
+# Fragments that mark a value as dummy wherever they occur.
+_PLACEHOLDERISH = re.compile(r"(?i)x{4,}|\*{4,}|your[_\- ]?(?:api|key|token|secret|password)|"
                              r"(.)\1{7,}|1234567|abcdef")
+# Ellipses and <angle brackets> are dummy only when they are the whole value: "..." and "<name>" are
+# placeholders, but "Dr. Smith..." is a real name followed by punctuation.
+_PLACEHOLDER_WHOLE = re.compile(r"(?:\.{3,}|…+|<[^>]*>)+")
 
 
 def is_dummy(entity: str, value: str) -> bool:
     v = value.strip()
     low = v.casefold()
-    if _PLACEHOLDERISH.search(v):
+    if _PLACEHOLDERISH.search(v) or _PLACEHOLDER_WHOLE.fullmatch(v):
         return True
     if entity == "PERSON":
         return low in _DUMMY_NAMES or v == "DAN"   # "DAN" = widely shared jailbreak persona
@@ -201,13 +205,36 @@ def detect(turns: pd.DataFrame, cfg: dict, taxonomy: dict, key: bytes) -> tuple[
 # ---------------------------------------------------------------- task type (heuristic)
 
 
+def _task_rules(taxonomy: dict) -> dict[str, tuple]:
+    def comp(pats) -> list[re.Pattern]:
+        return [re.compile(p, re.IGNORECASE) for p in pats or []]
+
+    rules = {}
+    for task, spec in taxonomy["task_types"].items():
+        if not isinstance(spec, dict):
+            spec = {"patterns": spec}
+        rules[task] = (comp(spec.get("patterns")), comp(spec.get("weak")), comp(spec.get("weak_context")),
+                       int(spec.get("weak_min_distinct", 2)))
+    return rules
+
+
+def _task_hits(text: str, rule: tuple) -> int:
+    patterns, weak, context, min_distinct = rule
+    n = sum(len(p.findall(text)) for p in patterns)
+    # Weak keywords are ordinary English words ("return", "class"); count them only with support.
+    weak_hits = [m.group().casefold() for p in weak for m in p.finditer(text)]
+    if weak_hits and (len(set(weak_hits)) >= min_distinct or any(p.search(text) for p in context)):
+        n += len(weak_hits)
+    return n
+
+
 def tag_tasks(turns: pd.DataFrame, taxonomy: dict) -> pd.DataFrame:
-    rules = {t: [re.compile(p, re.IGNORECASE) for p in pats] for t, pats in taxonomy["task_types"].items()}
+    rules = _task_rules(taxonomy)
     order = list(rules)
     rows = []
     for (ds, cid), g in turns.groupby(["dataset", "conversation_id"], sort=False):
         text = "\n".join(g.sort_values("turn_index")["text"])[:20000]
-        counts = {t: sum(len(p.findall(text)) for p in pats) for t, pats in rules.items()}
+        counts = {t: _task_hits(text, rule) for t, rule in rules.items()}
         best = max(order, key=lambda t: (counts[t], -order.index(t)))
         task = best if counts[best] > 0 else taxonomy["default_task_type"]
         rows.append({"dataset": ds, "conversation_id": cid, "task_type": task,

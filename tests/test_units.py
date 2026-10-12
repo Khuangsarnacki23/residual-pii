@@ -3,8 +3,9 @@ import pandas as pd
 
 from residpii import dedup
 from residpii.analysis import weighted_prevalence
-from residpii.detect import is_dummy, secret_matches
-from residpii.redactions import discover
+from residpii.config import REPO_ROOT, load_config, load_taxonomy
+from residpii.detect import is_dummy, secret_matches, tag_tasks
+from residpii.redactions import compile_patterns, discover, matches_configured
 from residpii.safety import assert_safe_table, keyed_hash
 from residpii.sampling import _proportional_allocation, turn_bucket
 
@@ -76,3 +77,46 @@ def test_placeholder_discovery_is_k_thresholded():
     })
     out = discover(turns, min_conversations=5)
     assert list(out["placeholder_shape"]) == ["NAME_#"]
+
+
+def test_dummy_filter_needs_whole_value_placeholder():
+    # An ellipsis or tag inside a longer value does not make it a dummy.
+    assert not is_dummy("PERSON", "Dr. Smith...")
+    assert not is_dummy("PERSON", "<b>Ada Lovelace</b>")
+    assert not is_dummy("LOCATION", "Paris… ")
+    assert is_dummy("PERSON", "...")
+    assert is_dummy("PERSON", "<your name>")
+    assert is_dummy("EMAIL_ADDRESS", "<email>")
+    assert is_dummy("SECRET_TOKEN", "sk-xxxxxxxxxxxxxxxxxxxx")
+
+
+def _task(text: str) -> str:
+    taxonomy = load_taxonomy(load_config(REPO_ROOT / "configs" / "default.yaml"))
+    turns = pd.DataFrame({"dataset": ["d"], "conversation_id": ["c"], "turn_index": [0], "text": [text]})
+    return tag_tasks(turns, taxonomy)["task_type"].iloc[0]
+
+
+def test_task_type_code_patterns_next_to_punctuation():
+    assert _task("I get error: list index out of range") == "code"
+    assert _task("can you help with c++ homework") == "code"
+    assert _task("#include <stdio.h>") == "code"
+    assert _task("why does this fail\n```\nx\n```") == "code"
+
+
+def test_task_type_code_keywords_need_context():
+    # Lone English words that happen to be code keywords are not enough.
+    assert _task("There is a bug in my garden") == "info_or_other"
+    assert _task("When should I return the library book?") == "info_or_other"
+    assert _task("What is the function of the liver?") == "info_or_other"
+    # ...but they count with code-like context or a second distinct keyword.
+    assert _task("what does return x = 5; do") == "code"
+    assert _task("the function f(x) is slow") == "code"
+    assert _task("should the class import that module") == "code"
+
+
+def test_placeholder_config_keys():
+    cfg = load_config(REPO_ROOT / "configs" / "default.yaml")
+    assert cfg["placeholders"]["discovery_min_conversations"] == 5
+    pattern = compile_patterns(cfg, "wildchat")    # the scalar key must not break pattern compilation
+    assert matches_configured("NAME_#", pattern)
+    assert not matches_configured("SOME_OTHER_#", pattern)

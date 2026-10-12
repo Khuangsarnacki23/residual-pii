@@ -22,7 +22,7 @@ CANDIDATE = re.compile(
 
 
 def compile_patterns(cfg: dict, dataset: str) -> re.Pattern | None:
-    pats = [*cfg["placeholders"].get("common", []), *cfg["placeholders"].get(dataset, [])]
+    pats = [*(cfg["placeholders"].get("common") or []), *(cfg["placeholders"].get(dataset) or [])]
     return re.compile("|".join(f"(?:{p})" for p in pats)) if pats else None
 
 
@@ -47,3 +47,8 @@ def discover(turns: pd.DataFrame, min_conversations: int = 5) -> pd.DataFrame:
              "conversations": len(c)} for (ds, shp), c in convs.items() if len(c) >= min_conversations]
     cols = ["dataset", "placeholder_shape", "occurrences", "conversations"]
     return pd.DataFrame(rows, columns=cols).sort_values(["dataset", "conversations"], ascending=[True, False])
+
+
+def matches_configured(shape_: str, pattern: re.Pattern | None) -> bool:
+    """Whether a discovered shape is already covered by the configured placeholder patterns."""
+    return bool(pattern and pattern.search(shape_.replace("#", "1")))
