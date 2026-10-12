@@ -1,12 +1,17 @@
 {
-  "pipeline_version": "0.1.0",
+  "pipeline_version": "0.2.0",
   "run_name": "smoke",
-  "config_hash": "9698eee9b89e9e88",
+  "config_hash": "7a733ede64d257e3",
+  "sampling_mode": "per_user_one_conv",
+  "roles": [
+    "user"
+  ],
   "datasets": {
     "wildchat": {
       "repo": "allenai/WildChat-1M",
       "revision": "7d6490e462285cf85d91eabea0f9a954fbddcd1f",
       "sampling": {
+        "mode": "per_user_one_conv",
         "eligible_conversations": 1525,
         "one_per_user_applied": true,
         "eligible_users": 611,

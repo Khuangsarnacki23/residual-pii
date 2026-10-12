@@ -8,7 +8,7 @@ We analysed three public chat-log datasets, pinned to the following Hugging Face
 (Not loaded in this run: arena, lmsys.)
 
 Only user turns were analysed. Conversations were restricted to those whose dataset-provided
-language label was ['English']. Data were streamed column-wise from the Hub; only sampled user
+language label was ['English']. Data were streamed column-wise from the Hub; only sampled
 turns were retained locally, in an access-restricted directory outside the code repository.
 
 ## Sampling
@@ -30,7 +30,8 @@ Presidio Analyzer (v2.2.364) with spaCy `en_core_web_lg`, score threshold
 0.5, and Presidio's default entity mapping (ORGANIZATION ignored, as in Presidio's defaults). Turns were scanned in
 5000-character windows with 200-character overlap, up to 50000 characters per
 turn. A separate rule-based detector matched API keys, access tokens, private-key headers, and
-hard-coded credentials. Detections were mapped onto direct and quasi-identifier categories
+hard-coded credentials, and another matched self-introductions ("my name is ...", "call me ..."),
+reported as detector `selfid`. Detections were mapped onto direct and quasi-identifier categories
 (configs/taxonomy.yaml). Detections matching common dummy or reserved values (e.g. example.com
 addresses, 555 phone numbers, private IP ranges, payment-processor test cards) were excluded. Raw
 span text was never written to disk; spans were stored as character offsets, category, length, and a

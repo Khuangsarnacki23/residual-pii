@@ -361,7 +361,8 @@ class Pipeline:
         turns_df = turns_df[turns_df["role"] == "user"]
         spans_df = spans_df[spans_df["role"] == "user"].reset_index(drop=True)
         stats_df = stats_df[stats_df["role"] == "user"].reset_index(drop=True)
-        conv = analysis.conversation_indicators(sample, spans_df, self.taxonomy, thr)
+        also = (("selfid", "name"),) if self.cfg.get("selfid", {}).get("enabled", True) else ()
+        conv = analysis.conversation_indicators(sample, spans_df, self.taxonomy, thr, also_report=also)
         conv = conv.merge(sample[["dataset", "conversation_id", "weight", "stratum"]], on=["dataset", "conversation_id"])
         conv = conv.merge(tasks_df, on=["dataset", "conversation_id"], how="left")
         conv["is_story_roleplay"] = conv["is_story_roleplay"].fillna(False).astype(bool)

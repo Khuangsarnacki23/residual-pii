@@ -16,15 +16,18 @@ def residual(spans: pd.DataFrame, threshold: float = 0.0) -> pd.DataFrame:
 
 
 def conversation_indicators(sample: pd.DataFrame, spans: pd.DataFrame, taxonomy: dict,
-                            threshold: float = 0.0) -> pd.DataFrame:
+                            threshold: float = 0.0, also_report: tuple = ()) -> pd.DataFrame:
     """Wide 0/1 matrix: one row per sampled conversation, one column per (detector, category),
-    plus per-tier and union columns. Column names are 'detector::category'."""
+    plus per-tier and union columns. Column names are 'detector::category'.
+
+    `also_report` lists (detector, category) pairs to keep even when the detector found nothing,
+    so an enabled detector shows up as a zero instead of going missing."""
     res = residual(spans, threshold)
     key = ["dataset", "conversation_id"]
     base = sample[key].copy()
     cats = list(taxonomy["categories"])
     tiers = sorted({v["tier"] for v in taxonomy["categories"].values()})
-    detectors = sorted(spans["detector"].unique()) if len(spans) else []
+    detectors = sorted(set(spans["detector"].unique()) | {d for d, _ in also_report})
 
     def hits(df: pd.DataFrame, col: str) -> pd.Series:
         flagged = df[key].drop_duplicates().assign(**{col: 1})
@@ -38,7 +41,7 @@ def conversation_indicators(sample: pd.DataFrame, spans: pd.DataFrame, taxonomy:
         for tier in tiers:
             out[f"{det}::tier_{tier}"] = hits(d[d["tier"] == tier], f"{det}::tier_{tier}")
     # Drop category columns a detector cannot produce (e.g. secrets::name) to keep tables readable.
-    produced = set(zip(spans["detector"], spans["category"])) if len(spans) else set()
+    produced = set(zip(spans["detector"], spans["category"])) | set(also_report)
     keep = [c for c in out.columns if "::" not in c or c.split("::")[0] == ANY
             or c.split("::")[1].startswith("tier_") or tuple(c.split("::")) in produced]
     return out[keep]

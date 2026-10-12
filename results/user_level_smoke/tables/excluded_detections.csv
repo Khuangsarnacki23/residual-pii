@@ -1,0 +1,9 @@
+dataset,detector,category,below_threshold,dummy_value,residual
+wildchat,presidio,account_id,703,0,0
+wildchat,presidio,date,0,0,1165
+wildchat,presidio,ip_address,0,1,0
+wildchat,presidio,location,0,0,616
+wildchat,presidio,name,0,0,1393
+wildchat,presidio,nrp,0,0,215
+wildchat,presidio,phone,7,0,0
+wildchat,presidio,url,0,0,3108

@@ -1,0 +1,9 @@
+dataset,activity_bucket,meets_min_conversations,n_users,share_users,suppressed
+wildchat,1,False,395,0.646481,False
+wildchat,2,False,85,0.139116,False
+wildchat,3,True,32,0.0523732,False
+wildchat,4-5,True,52,0.0851064,False
+wildchat,6-10,True,28,0.0458265,False
+wildchat,11-25,True,11,0.0180033,False
+wildchat,26-50,True,,,True
+wildchat,>50,True,,,True

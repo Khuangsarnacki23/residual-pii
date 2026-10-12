@@ -9,6 +9,10 @@ wildchat,all,presidio,nrp,100,13,0.129756,0.0794217,0.189941
 wildchat,all,presidio,tier_direct,100,30,0.298858,0.208863,0.388944
 wildchat,all,presidio,tier_quasi,100,44,0.438354,0.339136,0.528456
 wildchat,all,presidio,tier_url_unfiltered,100,13,0.12943,0.0699063,0.180176
+wildchat,all,selfid,name,100,0,0,0,0
+wildchat,all,selfid,tier_direct,100,0,0,0,0
+wildchat,all,selfid,tier_quasi,100,0,0,0,0
+wildchat,all,selfid,tier_url_unfiltered,100,0,0,0,0
 wildchat,all,any,name,100,30,0.298858,0.208863,0.388944
 wildchat,all,any,email,100,0,0,0,0
 wildchat,all,any,phone,100,0,0,0,0
@@ -33,6 +37,10 @@ wildchat,excl_story_roleplay,presidio,nrp,85,12,0.140777,0.0700111,0.223045
 wildchat,excl_story_roleplay,presidio,tier_direct,85,21,0.245204,0.163713,0.338554
 wildchat,excl_story_roleplay,presidio,tier_quasi,85,37,0.433801,0.338675,0.527913
 wildchat,excl_story_roleplay,presidio,tier_url_unfiltered,85,13,0.152256,0.0930588,0.222652
+wildchat,excl_story_roleplay,selfid,name,85,0,0,0,0
+wildchat,excl_story_roleplay,selfid,tier_direct,85,0,0,0,0
+wildchat,excl_story_roleplay,selfid,tier_quasi,85,0,0,0,0
+wildchat,excl_story_roleplay,selfid,tier_url_unfiltered,85,0,0,0,0
 wildchat,excl_story_roleplay,any,name,85,21,0.245204,0.163713,0.338554
 wildchat,excl_story_roleplay,any,email,85,0,0,0,0
 wildchat,excl_story_roleplay,any,phone,85,0,0,0,0
