@@ -1,0 +1,83 @@
+# Full-run configuration. Smoke runs extend this file (see smoke.yaml).
+run_name: default
+seed: 20261012
+
+# Raw sampled text and masked span stores live here, OUTSIDE the repo, with 0700 permissions.
+data_root: ~/.residual-pii
+# Aggregate-only outputs (tables, figures, methods, disclosure drafts). Safe to commit.
+results_dir: results
+
+# Conversation-level language filter, using each dataset's own language field.
+# Set to null to keep all languages (the pipeline itself is language-agnostic).
+languages: [English]
+
+datasets:
+  wildchat:
+    enabled: true
+    repo: allenai/WildChat-1M
+    revision: 7d6490e462285cf85d91eabea0f9a954fbddcd1f
+    sample_size: 5000
+  arena:
+    enabled: true
+    repo: lmsys/chatbot_arena_conversations
+    revision: 1b6335d42a1d2c7e34870c905d03ab964f7f2bd8
+    sample_size: 5000
+  lmsys:
+    enabled: true
+    repo: lmsys/lmsys-chat-1m
+    revision: 200748d9d3cddcc9d782887541057aca0b18c5da
+    sample_size: 5000
+
+# Limits on how much of each dataset the metadata scan reads (null = everything).
+# Data is always streamed column-by-column from the Hub; nothing is downloaded in full.
+scan:
+  max_files: null
+  max_row_groups_per_file: null
+
+sampling:
+  one_per_user: true          # applies where the dataset has a user proxy (WildChat hashed_ip, Arena judge)
+  strata: [month, turn_bucket]  # strata a dataset lacks (e.g. lmsys has no timestamp) are skipped
+  turn_bucket_edges: [1, 2, 4]  # buckets: 1, 2-3, 4+
+
+# Regexes for each dataset's own redaction placeholders. Detections overlapping a placeholder
+# are excluded from residual counts; placeholder frequency is reported separately.
+# Run `residpii placeholders` to discover candidate formats before trusting these.
+placeholders:
+  common:
+    - '\bNAME_\d+\b'
+    - '\bPRESIDIO_ANONYMIZED_[A-Z_]+\b'
+  wildchat:
+    - '<PRESIDIO_ANONYMIZED_[A-Z_]+>'   # confirmed on redacted WildChat turns
+  arena: []
+  lmsys: []
+
+presidio:
+  spacy_model: en_core_web_lg
+  # Detections are stored down to store_threshold; score_threshold is applied at analysis time,
+  # so it can be changed (and a sensitivity table is produced) without re-running Presidio.
+  # Note: under Presidio defaults a phone number without nearby context words scores 0.4.
+  store_threshold: 0.3
+  score_threshold: 0.5
+  sensitivity_thresholds: [0.3, 0.4, 0.5, 0.7, 0.85]
+  # Presidio's default spaCy setup ignores ORGANIZATION (very noisy); keep false to mirror the
+  # out-of-the-box configuration WildChat most likely used.
+  include_organization: false
+  entities: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER, LOCATION, DATE_TIME, NRP, URL, IP_ADDRESS,
+             CREDIT_CARD, IBAN_CODE, US_SSN, US_BANK_NUMBER, US_PASSPORT, US_DRIVER_LICENSE,
+             US_ITIN, CRYPTO, MEDICAL_LICENSE, UK_NHS]
+  chunk_chars: 5000
+  chunk_overlap: 200
+  max_chars_per_turn: 50000   # text beyond this is not scanned; the truncated volume is reported
+
+secrets:
+  enabled: true
+
+analysis:
+  bootstrap_reps: 1000
+  ci_level: 0.95
+
+dedup:
+  shingle_words: 3
+  num_perm: 128
+  bands: 16
+  jaccard_threshold: 0.8

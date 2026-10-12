@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "residual-pii"
+version = "0.1.0"
+description = "Measure residual PII in public LLM chat-log datasets (aggregate-only, privacy-preserving)."
+requires-python = ">=3.11"
+# Exact pins live in requirements.lock (pip freeze of the tested environment).
+dependencies = [
+    "presidio-analyzer==2.2.364",
+    "spacy==3.8.16",
+    "pyarrow==26.0.0",
+    "pandas==3.0.6",
+    "numpy==2.4.6",
+    "huggingface_hub==2.2.0",
+    "PyYAML==6.0.3",
+    "matplotlib==3.11.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1"]
+
+[project.scripts]
+residpii = "residpii.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

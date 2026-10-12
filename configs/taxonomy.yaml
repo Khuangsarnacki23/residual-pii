@@ -1,0 +1,30 @@
+# Maps detector entity labels onto the three-tier taxonomy.
+# Tier "sensitive" (Trust No Bot-style topics) needs a contextual detector (LLM) and is empty for now.
+categories:
+  name:             {tier: direct, labels: [PERSON]}
+  email:            {tier: direct, labels: [EMAIL_ADDRESS]}
+  phone:            {tier: direct, labels: [PHONE_NUMBER]}
+  account_id:       {tier: direct, labels: [CREDIT_CARD, IBAN_CODE, US_SSN, US_BANK_NUMBER, US_PASSPORT,
+                                            US_DRIVER_LICENSE, US_ITIN, CRYPTO, MEDICAL_LICENSE, UK_NHS]}
+  ip_address:       {tier: direct, labels: [IP_ADDRESS]}
+  # Most URLs in these datasets are links to public sites/docs. Kept in their own tier until a
+  # personal-URL filter exists, so they don't swamp the direct-identifier union.
+  url:              {tier: url_unfiltered, labels: [URL]}
+  api_key_token:    {tier: direct, labels: [SECRET_TOKEN]}
+  location:         {tier: quasi, labels: [LOCATION]}
+  date:             {tier: quasi, labels: [DATE_TIME]}
+  nrp:              {tier: quasi, labels: [NRP]}      # nationality / religious / political group
+  organization:     {tier: quasi, labels: [ORGANIZATION]}
+
+# Heuristic task-type rules over all user text: the type with the most keyword hits wins (ties: listed order).
+# These are keyword heuristics, not a validated classifier; see docs/limitations.md.
+task_types:
+  story_roleplay:  ['\b(?:story|stories|fanfic|fan[- ]fiction|role[- ]?play|rp\b|chapter|episode|screenplay|script for|narrat\w*|characters?|scene|novel|plot)\b']
+  code:            ['```', '\b(?:def|import|function|class|return|const|var|SELECT|#include|traceback|python|javascript|java|c\+\+|sql|html|css|regex|bug|compile|error:)\b']
+  translation:     ['\btranslat\w*\b', '\binto (?:english|chinese|spanish|french|german|japanese|russian|korean|arabic|portuguese|italian)\b']
+  job_application: ['\b(?:resume|résumé|cv|cover letter|job application|visa|personal statement|statement of purpose|interview)\b']
+  communication:   ['\b(?:email|e-mail|letter|reply to|respond to|message to|text message|linkedin post|tweet|invitation)\b']
+  editing:         ['\b(?:rewrite|re-write|paraphrase|proofread|rephrase|polish|grammar|edit this|improve this)\b']
+  summarization:   ['\b(?:summari[sz]e|summary|tl;?dr)\b']
+  creative_other:  ['\b(?:poem|poetry|lyrics|song|haiku|joke|slogan)\b']
+default_task_type: info_or_other
