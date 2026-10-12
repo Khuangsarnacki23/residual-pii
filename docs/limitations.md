@@ -63,7 +63,7 @@ figures are not separated from private individuals.
 ## LLM extraction
 - **Extraction errors.** The model misses attributes, misreads who they are about (the user, a
   third party, a fictional persona the user wants text for), and can output attributes that are
-  not in the text. A local 8B model will be noticeably worse at this than a large hosted one.
+  not in the text. Small, cheap models will be noticeably worse at this than large ones.
 - **Inferred attributes are guesses.** "Inferred" covers anything from a near-certain reading to a
   stereotype (guessing gender from topic, nationality from spelling). The `stated_only` variant is
   the conservative result; `stated_plus_inferred` is an upper bound on what a motivated reader
@@ -76,11 +76,14 @@ figures are not separated from private individuals.
   turn is given as context, so references further back are lost.
 - **Prompt injection.** User text can contain instructions. The parser only accepts values from a
   closed schema, which limits the damage to wrong labels.
-- **Local vs hosted.** Results depend on the model. A hosted model would likely extract and infer
-  more, raising measured uniqueness; it also sends user text to a third party and is off unless
-  explicitly allowed. Numbers from different models are not comparable.
-- **Subsampling.** With `llm.sample_turns` set, only some users are processed; the uniqueness
-  sample is then smaller than the Presidio sample.
+- **Hosted only.** There is no local backend, so every LLM run sends sampled user text to a third
+  party (Fireworks by default). That is a disclosure in its own right: it needs the dataset terms,
+  the instructor/IRB and both partners to allow it, and it depends on the provider's retention
+  terms. State the provider and model in the paper.
+- **Model dependence.** Results depend on the model. A larger model would likely extract and infer
+  more, raising measured uniqueness. Numbers from different models are not comparable.
+- **Subsampling.** With `llm.sample_turns` set (the spend cap), only some users are processed; the
+  uniqueness sample is then smaller than the Presidio sample.
 
 ## Profiles and coarsening
 - **Lookup tables are small and US/English-centred.** Cities, regions and occupations outside

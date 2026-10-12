@@ -95,22 +95,25 @@ selfid:
   enabled: true
 
 # LLM detector for quasi-identifiers (stated and inferred). Off by default.
-# The local backend keeps user text on this machine. A hosted backend sends it to a third party:
-# the run aborts unless allow_hosted is true, and that needs the dataset terms, the instructor/IRB
-# and both partners to agree.
+# Every backend is a hosted API, so enabling this sends sampled user text to a third party. The run
+# aborts unless allow_hosted is true, and that needs the dataset terms, the instructor/IRB and both
+# partners to agree.
 llm:
   enabled: false
-  backend: ollama            # ollama | anthropic | openai
-  model: llama3.1:8b         # e.g. qwen2.5:7b-instruct; for a hosted backend, a current model name
-  allow_hosted: false        # MUST be true for anthropic/openai (or a non-local ollama_url)
-  ollama_url: http://localhost:11434/api/chat
+  backend: fireworks         # fireworks | anthropic | openai
+  model: accounts/fireworks/models/gpt-oss-120b   # any serverless chat model id from the Fireworks library
+  allow_hosted: false        # MUST be true or the run aborts
   temperature: 0             # not sent to the anthropic backend, whose current models reject it
   anthropic_effort: low      # anthropic backend only; null for models without the effort setting
+  fireworks_response_format: json_schema   # json_object for a model without JSON-schema support
+  max_output_tokens: 2000    # fireworks backend; a reply cut off here is a parse failure
   max_turn_chars: 6000       # longer turns are cut here; the count is in llm_run_stats.csv
   max_context_chars: 1500    # the preceding turn, given as context only
-  sample_turns: 2000         # LLM runs on a subsample (whole users in user_level mode); null = all
-  concurrency: 1             # >1 only for hosted backends
-  timeout_s: 300
+  # The spend cap: the LLM runs on a subsample (whole users in user_level mode); null = all.
+  # Responses are cached, so raising it later only pays for the new turns.
+  sample_turns: 2000
+  concurrency: 4             # parallel requests; lower it if the API rate-limits
+  timeout_s: 120
   prompt_version: v1         # configs/prompts/qi_extract_<version>.txt
   min_confidence: 0.6        # attributes below this are left out of per-user profiles
 

@@ -64,12 +64,9 @@ def test_parse_response_drops_unusable_occupation_codes():
 # ---------------------------------------------------------------- hosted opt-in
 
 
-@pytest.mark.parametrize("override", [
-    {"backend": "anthropic"}, {"backend": "openai"},
-    {"backend": "ollama", "ollama_url": "http://gpu-box.example.org:11434/api/chat"},
-])
-def test_hosted_backend_needs_opt_in(override):
-    lcfg = {**_cfg()["llm"], **override}
+@pytest.mark.parametrize("backend", ["fireworks", "anthropic", "openai"])
+def test_hosted_backend_needs_opt_in(backend):
+    lcfg = {**_cfg()["llm"], "backend": backend}
     with pytest.raises(llm.HostedBackendNotAllowed):
         llm.check_backend_allowed(lcfg)
     with pytest.raises(llm.HostedBackendNotAllowed):
@@ -77,19 +74,106 @@ def test_hosted_backend_needs_opt_in(override):
     llm.check_backend_allowed({**lcfg, "allow_hosted": True})
 
 
-def test_defaults_are_local_and_off(tmp_path):
+def test_defaults_are_off_and_not_allowed(tmp_path):
     cfg = _cfg()
     assert cfg["llm"]["enabled"] is False and cfg["llm"]["allow_hosted"] is False
-    llm.check_backend_allowed(cfg["llm"])                  # local ollama needs no opt-in
+    with pytest.raises(llm.HostedBackendNotAllowed):
+        llm.check_backend_allowed(cfg["llm"])              # the default backend is hosted too
     with pytest.raises(ValueError):
-        llm.check_backend_allowed({**cfg["llm"], "backend": "somewhere"})
-    # A run configured for a hosted backend aborts at start-up, before any data is touched.
+        llm.check_backend_allowed({**cfg["llm"], "backend": "ollama"})   # there is no local backend
+    # An enabled run without the opt-in aborts at start-up, before any data is touched.
     cfg.update(run_name="t", data_root=str(tmp_path / "data"), results_dir=str(tmp_path / "results"))
-    cfg["llm"].update(enabled=True, backend="anthropic")
+    cfg["llm"]["enabled"] = True
     with pytest.raises(llm.HostedBackendNotAllowed):
         Pipeline(cfg, sources={})
-    assert not (tmp_path / "data" / "runs" / "t" / "restricted").exists() or \
-        not list((tmp_path / "data" / "runs" / "t" / "restricted").iterdir())
+    restricted = tmp_path / "data" / "runs" / "t" / "restricted"
+    assert not restricted.exists() or not list(restricted.iterdir())
+    # The pilot config ships with the opt-in still off.
+    pilot = load_config(REPO_ROOT / "configs" / "fireworks_pilot.yaml")
+    assert pilot["llm"]["enabled"] is True and pilot["llm"]["allow_hosted"] is False
+
+
+# ---------------------------------------------------------------- fireworks backend
+
+
+class _FakeHTTP:
+    """Stands in for urllib.request.urlopen: records requests, replays canned outcomes."""
+
+    def __init__(self, outcomes):
+        self.outcomes, self.requests = list(outcomes), []
+
+    def __call__(self, req, timeout=None):
+        self.requests.append(req)
+        out = self.outcomes.pop(0)
+        if isinstance(out, Exception):
+            raise out
+        return out
+
+    @staticmethod
+    def ok(content: str, tokens=(1200, 40)):
+        import io
+        return io.BytesIO(json.dumps({"choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+                                      "usage": {"prompt_tokens": tokens[0], "completion_tokens": tokens[1]}}).encode())
+
+    @staticmethod
+    def error(code: int):
+        import urllib.error
+        return urllib.error.HTTPError("https://api.fireworks.ai", code, "x", {}, None)
+
+
+def _fireworks(monkeypatch, outcomes, **override):
+    monkeypatch.setenv("FIREWORKS_API_KEY", "fw-test-key-000")
+    monkeypatch.setattr(llm.time, "sleep", lambda s: None)
+    http = _FakeHTTP(outcomes)
+    monkeypatch.setattr(llm.urllib.request, "urlopen", http)
+    lcfg = {**_cfg()["llm"], "allow_hosted": True, **override}
+    return llm.make_backend(lcfg), http, lcfg
+
+
+def test_fireworks_request_and_usage(monkeypatch, tmp_path):
+    backend, http, lcfg = _fireworks(monkeypatch, [_FakeHTTP.ok(_resp(_attr()))])
+    assert backend.name == "fireworks" and backend.model == lcfg["model"]
+    prompt = llm.load_prompt(_cfg())
+    attrs, tlog = llm.extract(_selected(["I live in Denver"]), lcfg, prompt, backend, b"k", tmp_path / "c.jsonl")
+    req = http.requests[0]
+    assert req.full_url == llm.FIREWORKS_URL and req.get_header("Authorization") == "Bearer fw-test-key-000"
+    body = json.loads(req.data)
+    assert body["model"] == lcfg["model"] and body["temperature"] == 0
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"]["json_schema"]["schema"] == llm.RESPONSE_SCHEMA
+    assert [m["role"] for m in body["messages"]] == ["system", "user"] and "I live in Denver" in body["messages"][1]["content"]
+    assert len(attrs) == 1 and tlog["input_tokens"].iloc[0] == 1200 and tlog["output_tokens"].iloc[0] == 40
+    stats = llm.run_stats(tlog, backend, lcfg).iloc[0]
+    assert stats["input_tokens_new"] == 1200 and stats["output_tokens_new"] == 40
+    # Served from cache next time: no request, nothing newly billed.
+    _, tlog2 = llm.extract(_selected(["I live in Denver"]), lcfg, prompt, backend, b"k", tmp_path / "c.jsonl")
+    assert len(http.requests) == 1
+    assert llm.run_stats(tlog2, backend, lcfg).iloc[0]["input_tokens_new"] == 0
+
+
+def test_fireworks_retries_then_counts_both_attempts(monkeypatch, tmp_path):
+    # A 429 is retried at the HTTP level; a malformed answer is retried once and both are billed.
+    backend, http, lcfg = _fireworks(monkeypatch, [_FakeHTTP.error(429), _FakeHTTP.ok("oops", (1000, 5)),
+                                                   _FakeHTTP.ok(_resp(), (1000, 8))])
+    _, tlog = llm.extract(_selected(["x"]), lcfg, llm.load_prompt(_cfg()), backend, b"k", tmp_path / "c.jsonl")
+    assert len(http.requests) == 3 and tlog["status"].iloc[0] == "ok"
+    assert (tlog["input_tokens"].iloc[0], tlog["output_tokens"].iloc[0]) == (2000, 13)
+
+
+@pytest.mark.parametrize("code,hint", [(401, "FIREWORKS_API_KEY"), (402, "out of credit"), (404, "llm.model")])
+def test_fireworks_hard_errors_stop_the_run(monkeypatch, tmp_path, code, hint):
+    backend, _, lcfg = _fireworks(monkeypatch, [_FakeHTTP.error(code)])
+    with pytest.raises(llm.BackendUnavailable) as e:
+        llm.extract(_selected(["x"]), lcfg, llm.load_prompt(_cfg()), backend, b"k", tmp_path / "c.jsonl")
+    assert hint in str(e.value) and "fw-test-key-000" not in str(e.value)
+
+
+def test_fireworks_needs_key_and_json_object_fallback(monkeypatch):
+    monkeypatch.delenv("FIREWORKS_API_KEY", raising=False)
+    with pytest.raises(llm.BackendUnavailable):
+        llm.make_backend({**_cfg()["llm"], "allow_hosted": True})
+    backend, _, _ = _fireworks(monkeypatch, [], fireworks_response_format="json_object")
+    assert backend.response_format == {"type": "json_object"}
 
 
 # ---------------------------------------------------------------- extraction + cache

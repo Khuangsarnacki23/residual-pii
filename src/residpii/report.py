@@ -274,7 +274,7 @@ def methods_summary(cfg: dict, manifest: dict, results_dir: Path) -> None:
             prompt_version=m["prompt_version"],
             llm_scope="all sampled user turns" if lcfg.get("sample_turns") is None
             else f"a random subsample capped at {lcfg['sample_turns']:,}",
-            hosted_note="a hosted API, used with explicit opt-in" if m["hosted"] else "run locally",
+            hosted_note="a hosted API, used with explicit opt-in" if m["hosted"] else "a test stub",
             max_turn_chars=lcfg["max_turn_chars"], min_confidence=lcfg["min_confidence"],
             max_combo=cfg.get("uniqueness", {}).get("max_combination_size", 4),
             reps=cfg["analysis"]["bootstrap_reps"], min_cell=cfg.get("publication", {}).get("min_cell", 10))

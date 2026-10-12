@@ -1,0 +1,19 @@
+# Pilot of the LLM detector on the user-level smoke sample (about 50 users, ~1,000 user turns).
+# Use it to compare models on failure rate, cost and a manual check before a larger run.
+#
+#   export FIREWORKS_API_KEY=...
+#   residpii run --config configs/fireworks_pilot.yaml --datasets wildchat
+#
+# Token counts for the bill are in results/<run>/tables/llm_run_stats.csv. To try another model,
+# change `model` and `run_name` (a new run name keeps the two sets of results apart).
+extends: user_level_smoke.yaml
+run_name: fireworks_pilot
+
+llm:
+  enabled: true
+  backend: fireworks
+  model: accounts/fireworks/models/gpt-oss-120b
+  # This sends sampled user text to Fireworks. Set to true only once the dataset terms, your
+  # instructor/IRB and your partner allow it.
+  allow_hosted: false
+  sample_turns: null         # every turn of every sampled user

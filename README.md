@@ -64,21 +64,29 @@ profiles (coarsened with `configs/coarsening.yaml`) → uniqueness tables and a 
 
 ### The LLM detector is opt-in
 
-`llm.enabled` is `false` by default. The default backend is a local model through
-[Ollama](https://ollama.com), so user text stays on your machine:
+`llm.enabled` is `false` by default. There is no local backend: `llm.backend` is `fireworks`
+(default), `anthropic` or `openai`, and each one sends sampled user text to a third party. The run
+**aborts** unless `llm.allow_hosted: true` is also set. Only set it if the dataset terms, your
+instructor/IRB and your partner all allow it.
 
 ```bash
-ollama pull llama3.1:8b && ollama serve
-# then set llm.enabled: true in your config
+export FIREWORKS_API_KEY=...          # read from the environment; never logged or written to disk
+# set llm.allow_hosted: true in configs/fireworks_pilot.yaml, then:
+.venv/bin/residpii run --config configs/fireworks_pilot.yaml --datasets wildchat
 ```
 
-`llm.backend: anthropic` or `openai` sends sampled user text to a third party. The run **aborts**
-unless `llm.allow_hosted: true` is also set. Only set it if the dataset terms, your instructor/IRB
-and your partner all allow it. Hosted backends need `pip install anthropic` or `openai`; the SDKs
-read credentials from the environment and the pipeline never reads or logs them.
+`configs/fireworks_pilot.yaml` runs the detector on the user-level smoke sample (about 50 users,
+1,000 user turns), which is the place to compare models before a larger run. `llm.model` is any
+serverless chat model id from the Fireworks library.
 
-Extraction on the full user-level sample is tens of thousands of turns. `llm.sample_turns` caps it
-(whole users are kept together in user-level mode). Responses are cached, so a rerun is free.
+**Cost control.** One call is roughly 1,300 input tokens (950 of them the fixed prompt) and a
+short JSON reply. `llm.sample_turns` caps how many turns are sent (whole users are kept together
+in user-level mode); the full user-level sample is roughly 40,000 user turns. Responses are cached,
+so a rerun, or a run stopped by an exhausted balance, only pays for turns not yet done.
+`llm_run_stats.csv` reports the input and output tokens billed; multiply by the model's prices.
+
+The `anthropic` and `openai` backends need `pip install anthropic` or `openai`, and those SDKs read
+their credentials from the environment.
 
 ### Hand labeling
 

@@ -9,7 +9,8 @@ sampling:
   mode: user_level
 
 # The identifiability analysis (profiles, uniqueness) needs the LLM detector. It is off by default;
-# see README "The LLM detector is opt-in" before turning it on.
+# see README "The LLM detector is opt-in" before turning it on, and pilot with fireworks_pilot.yaml.
 #   llm:
 #     enabled: true
-#     sample_turns: null   # every turn of every sampled user; set a number to cap the work
+#     allow_hosted: true
+#     sample_turns: 10000  # the spend cap; the full sample is roughly 40,000 user turns

@@ -4,9 +4,9 @@ Layer 3 of detection: for each sampled user turn, an LLM returns the quasi-ident
 reveals (occupation, city, age, ...), whether each was stated or inferred, and whom it is about.
 
 Privacy rules this module enforces:
-  - The default backend is a local Ollama server. Hosted APIs (anthropic, openai, or an Ollama URL
-    that is not on this machine) send user text to a third party and are refused unless
-    `llm.allow_hosted` is true.
+  - Every backend (fireworks, anthropic, openai) is a hosted API: it sends sampled user text to a
+    third party. A run is refused unless `llm.allow_hosted` is true, and `llm.enabled` is off by
+    default.
   - Extracted values are personal data. They are written only under the restricted directory
     (the response cache and `llm_attrs_<dataset>.parquet`). Everything this module returns for
     results/ is counts and shares over closed label sets.
@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
 import sys
 import threading
@@ -27,7 +28,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
-from urllib.parse import urlparse
 
 import numpy as np
 import pandas as pd
@@ -56,8 +56,8 @@ OCCUPATION_GROUPS = {
 }
 _MINOR_GROUP = re.compile(r"(\d\d)-(\d)\d{0,3}")   # "15-1", "15-1200" or a detailed code "15-1252"
 MAX_VALUE_CHARS = 200
-DEFAULT_OLLAMA_URL = "http://localhost:11434/api/chat"
-HOSTED_BACKENDS = ("anthropic", "openai")
+FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
+HOSTED_BACKENDS = ("fireworks", "anthropic", "openai")
 
 
 def log(msg: str) -> None:
@@ -189,50 +189,79 @@ def load_prompt(cfg: dict) -> Prompt:
 # ---------------------------------------------------------------- backends
 
 
-def _is_loopback(url: str) -> bool:
-    return (urlparse(url).hostname or "") in ("localhost", "127.0.0.1", "::1")
-
-
 def check_backend_allowed(lcfg: dict) -> None:
-    """Abort unless the backend is local, or hosted use was explicitly switched on."""
+    """Abort unless hosted use was explicitly switched on. Every real backend is hosted."""
     backend = lcfg.get("backend")
-    if backend not in ("ollama", *HOSTED_BACKENDS):
-        raise ValueError(f"Unknown llm.backend: {backend!r} (expected ollama, anthropic or openai)")
-    leaves_machine = backend in HOSTED_BACKENDS or not _is_loopback(lcfg.get("ollama_url") or DEFAULT_OLLAMA_URL)
-    if leaves_machine and not lcfg.get("allow_hosted"):
+    if backend not in HOSTED_BACKENDS:
+        raise ValueError(f"Unknown llm.backend: {backend!r} (expected one of {', '.join(HOSTED_BACKENDS)})")
+    if not lcfg.get("allow_hosted"):
         raise HostedBackendNotAllowed(
-            f"llm.backend={backend!r} would send user text off this machine. That needs the dataset "
+            f"llm.backend={backend!r} sends sampled user text to a third party. That needs the dataset "
             "terms, your instructor/IRB and your partner to allow it; if they do, set "
-            "llm.allow_hosted: true. Otherwise use the local backend (llm.backend: ollama).")
+            "llm.allow_hosted: true in your config.")
 
 
-class OllamaBackend:
-    """Local model through Ollama's HTTP API, in JSON mode."""
+class FireworksBackend:
+    """Hosted. Fireworks' OpenAI-compatible chat completions endpoint with a JSON-schema response
+    format. The key comes from FIREWORKS_API_KEY and is never logged or put in an error message."""
 
-    name = "ollama"
+    name = "fireworks"
+    RETRY_STATUS = (408, 429, 500, 502, 503, 504)
 
     def __init__(self, lcfg: dict):
+        self._key = os.environ.get("FIREWORKS_API_KEY")
+        if not self._key:
+            raise BackendUnavailable("llm.backend=fireworks needs the FIREWORKS_API_KEY environment variable")
         self.model = lcfg["model"]
-        self.url = lcfg.get("ollama_url") or DEFAULT_OLLAMA_URL
         self.temperature = lcfg.get("temperature", 0)
-        self.timeout = lcfg.get("timeout_s", 300)
+        self.timeout = lcfg.get("timeout_s", 120)
+        self.max_tokens = int(lcfg.get("max_output_tokens", 2000))
+        # json_schema constrains the answer to RESPONSE_SCHEMA (and turns reasoning output off);
+        # json_object only guarantees valid JSON, for models without schema support.
+        if lcfg.get("fireworks_response_format", "json_schema") == "json_schema":
+            self.response_format = {"type": "json_schema",
+                                    "json_schema": {"name": "quasi_identifiers", "schema": RESPONSE_SCHEMA}}
+        else:
+            self.response_format = {"type": "json_object"}
+        self._local = threading.local()
+
+    def last_usage(self) -> tuple[int, int]:
+        """(input tokens, output tokens) billed for this thread's most recent call."""
+        return getattr(self._local, "usage", (0, 0))
 
     def complete(self, system: str, user: str) -> str:
-        body = json.dumps({
-            "model": self.model, "stream": False, "format": "json",
-            "options": {"temperature": self.temperature},
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        }).encode()
-        req = urllib.request.Request(self.url, data=body, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read())["message"]["content"]
-        except urllib.error.HTTPError as e:
-            hint = f" Is the model pulled? Try: ollama pull {self.model}" if e.code == 404 else ""
-            raise BackendUnavailable(f"Ollama returned HTTP {e.code} at {self.url}.{hint}") from None
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-            raise BackendUnavailable(f"Could not reach Ollama at {self.url} ({type(e).__name__}). "
-                                     "Is `ollama serve` running?") from None
+        self._local.usage = (0, 0)
+        body = {"model": self.model, "max_tokens": self.max_tokens, "response_format": self.response_format,
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        if self.temperature is not None:
+            body["temperature"] = self.temperature
+        req = urllib.request.Request(FIREWORKS_URL, data=json.dumps(body).encode(), headers={
+            "Content-Type": "application/json", "Authorization": f"Bearer {self._key}"})
+        for attempt in range(4):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    data = json.loads(resp.read())
+                break
+            except urllib.error.HTTPError as e:
+                if e.code in self.RETRY_STATUS and attempt < 3:
+                    time.sleep(2 ** attempt)
+                    continue
+                hint = {401: "check FIREWORKS_API_KEY", 403: "check FIREWORKS_API_KEY and model access",
+                        402: "the account is out of credit", 404: "check llm.model",
+                        400: "check llm.model; if it has no JSON-schema support set "
+                             "llm.fireworks_response_format: json_object",
+                        429: "rate limited or out of credit; lower llm.concurrency"}.get(e.code, "")
+                # Stop the run: finished turns are cached, so a rerun picks up where this one ended.
+                raise BackendUnavailable(f"Fireworks returned HTTP {e.code}" + (f" ({hint})" if hint else "")) from None
+            except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+                if attempt < 3:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise BackendUnavailable(f"Could not reach Fireworks ({type(e).__name__})") from None
+        usage = data.get("usage") or {}
+        self._local.usage = (int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0))
+        choices = data.get("choices") or [{}]
+        return (choices[0].get("message") or {}).get("content") or ""
 
 
 class AnthropicBackend:
@@ -310,7 +339,7 @@ class CallableBackend:
 
 def make_backend(lcfg: dict):
     check_backend_allowed(lcfg)
-    return {"ollama": OllamaBackend, "anthropic": AnthropicBackend, "openai": OpenAIBackend}[lcfg["backend"]](lcfg)
+    return {"fireworks": FireworksBackend, "anthropic": AnthropicBackend, "openai": OpenAIBackend}[lcfg["backend"]](lcfg)
 
 
 # ---------------------------------------------------------------- turn selection
@@ -345,7 +374,8 @@ def select_turns(turns: pd.DataFrame, sample: pd.DataFrame, lcfg: dict, seed: in
 
 TURN_KEYS = ["dataset", "conversation_id", "turn_index"]
 ATTR_COLUMNS = [*TURN_KEYS, *Attribute.__dataclass_fields__]
-LOG_COLUMNS = [*TURN_KEYS, "status", "cached", "latency_s", "n_attributes", "truncated"]
+LOG_COLUMNS = [*TURN_KEYS, "status", "cached", "latency_s", "n_attributes", "truncated", "input_tokens",
+               "output_tokens"]
 
 
 class ResponseCache:
@@ -370,20 +400,25 @@ class ResponseCache:
 
 
 def _call(backend, prompt: Prompt, turn: str, context: str) -> dict:
-    """One turn: ask, parse strictly, retry once on a malformed answer."""
+    """One turn: ask, parse strictly, retry once on a malformed answer. Token counts cover every
+    attempt, for backends that report them."""
     system, user = prompt.render(turn, context)
-    t0, error = time.monotonic(), "parse_failure"
+    usage = getattr(backend, "last_usage", lambda: (0, 0))
+    t0, status, attrs, tok_in, tok_out = time.monotonic(), "parse_failure", [], 0, 0
     for attempt in (1, 2):
         try:
-            attrs = parse_response(backend.complete(system, user))
-            return {"status": "ok", "attrs": [asdict(a) for a in attrs], "attempts": attempt,
-                    "latency_s": time.monotonic() - t0}
+            raw = backend.complete(system, user)
+        except BackendRefusal:
+            status = "refusal"
+            break
+        tok_in, tok_out = tok_in + usage()[0], tok_out + usage()[1]
+        try:
+            attrs, status = [asdict(a) for a in parse_response(raw)], "ok"
+            break
         except ParseError:
             continue
-        except BackendRefusal:
-            error = "refusal"
-            break
-    return {"status": error, "attrs": [], "attempts": attempt, "latency_s": time.monotonic() - t0}
+    return {"status": status, "attrs": attrs, "attempts": attempt, "latency_s": time.monotonic() - t0,
+            "input_tokens": tok_in, "output_tokens": tok_out}
 
 
 def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: bytes,
@@ -402,9 +437,6 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
     done = {k: {**cache.entries[k], "cached": True} for _, k, _, _ in jobs if k in cache.entries}
     todo = {k: (turn, context) for _, k, turn, context in jobs if k not in done}
     workers = int(lcfg.get("concurrency", 1))
-    if workers > 1 and backend.name == "ollama":
-        log("[llm] concurrency > 1 is for hosted backends; using 1 for ollama")
-        workers = 1
     log(f"[llm] {backend.name}/{backend.model}: {len(jobs):,} turns, {len(jobs) - len(todo):,} served from cache")
 
     counter = {"n": 0, "failed": 0}
@@ -427,12 +459,17 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
     else:
         done.update(map(work, todo.items()))
 
+    new = [r for r in done.values() if not r["cached"]]
+    if new:
+        log(f"[llm] tokens billed this run: {sum(r.get('input_tokens', 0) for r in new):,} input, "
+            f"{sum(r.get('output_tokens', 0) for r in new):,} output")
+
     attrs, turn_log = [], []
     for row, k, _, _ in jobs:
         rec = done[k]
         ident = (row.dataset, row.conversation_id, int(row.turn_index))
         turn_log.append((*ident, rec["status"], rec["cached"], rec["latency_s"], len(rec["attrs"]),
-                         len(row.text) > max_turn))
+                         len(row.text) > max_turn, rec.get("input_tokens", 0), rec.get("output_tokens", 0)))
         attrs += [(*ident, *(a[f] for f in Attribute.__dataclass_fields__)) for a in rec["attrs"]]
     return pd.DataFrame(attrs, columns=ATTR_COLUMNS), pd.DataFrame(turn_log, columns=LOG_COLUMNS)
 
@@ -488,5 +525,10 @@ def run_stats(turn_log: pd.DataFrame, backend, lcfg: dict) -> pd.DataFrame:
                      "refusals": int((tl["status"] == "refusal").sum()),
                      "failure_rate": float((tl["status"] != "ok").mean()),
                      "mean_latency_s": float(fresh["latency_s"].mean()) if len(fresh) else np.nan,
-                     "attributes_extracted": int(tl["n_attributes"].sum())})
+                     "attributes_extracted": int(tl["n_attributes"].sum()),
+                     # Multiply by the model's per-token prices for the spend. "_new" is this run only;
+                     # cached turns cost nothing again.
+                     "input_tokens": int(tl["input_tokens"].sum()), "output_tokens": int(tl["output_tokens"].sum()),
+                     "input_tokens_new": int(fresh["input_tokens"].sum()),
+                     "output_tokens_new": int(fresh["output_tokens"].sum())})
     return pd.DataFrame(rows)
