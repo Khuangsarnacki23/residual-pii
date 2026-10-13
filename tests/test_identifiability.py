@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from residpii import llm, uniqueness
+from residpii.safety import assert_safe_table
 from residpii.config import REPO_ROOT, load_config
 from residpii.pipeline import Pipeline
 from residpii.profiles import (AMBIGUOUS, DIMENSIONS, UNKNOWN, build_profiles, load_coarsener, profile_summary,
@@ -402,3 +403,54 @@ def test_uniqueness_suppression_and_no_values():
         text = table.astype(str).to_string().casefold()
         for value in ("texas", "ohio", "female"):
             assert value not in text
+
+
+def test_population_estimate_on_known_profiles():
+    """Common values stop being unique in a large population; a rare pair stays unique."""
+    n = 200
+    df = pd.DataFrame({"dataset": "d", "variant": "stated_only", "level": "fine",
+                       "user": [f"u{i}" for i in range(n)], "activity_bucket": "3",
+                       "gender": ["male"] * 100 + ["female"] * 100, "age_band": ["20-29"] * 150 + ["30-39"] * 50})
+    for d in DIMENSIONS:
+        if d not in df:
+            df[d] = None
+    # Ten users each hold a one-off education level and a one-off occupation group.
+    df.loc[:9, "education_level"] = [f"e{i}" for i in range(10)]
+    df.loc[:9, "occupation_group"] = [f"o{i}" for i in range(10)]
+    acfg = {"bootstrap_reps": 50, "ci_level": 0.95}
+    ucfg = {"sample_sizes": [100], "population_bootstrap_reps": 50}
+    _, _, summary = uniqueness.analyze(df, ucfg, acfg, seed=1, min_cell=10)
+    pop = uniqueness.population_estimate(df, summary, {"d": 20_000}, ucfg, acfg, seed=1)
+    assert list(pop.columns) == uniqueness.POPULATION_COLUMNS
+    est = pop[pop["subset"] == "population"].set_index("n_qi")
+    assert (est["target_users"] == 20_000).all() and (est["sample_users"] == n).all()
+    # One dimension: a value seen once in 200 is expected ~50 times among 20,000 users.
+    assert est.loc[1, "share_unique_model"] < 1e-6
+    # Two one-off values together: match probability (0.5/200)^2, so the ten users stay mostly unique.
+    expected = 10 / n * (1 - (0.5 / n) ** 2) ** (20_000 - 1)
+    assert est.loc[2, "share_unique_model"] == pytest.approx(expected, rel=1e-6)
+    assert est.loc[2, "ci_low"] <= est.loc[2, "share_unique_model"] <= est.loc[2, "ci_high"]
+    assert (est["share_unique_model"].diff().dropna() >= -1e-12).all()        # more dimensions never hide a user
+    # The model check sits beside the observed share at the same sample size, and never exceeds 1.
+    check = pop[(pop["subset"] == "model_at_sample_size") & (pop["target_users"] == n)].set_index("n_qi")
+    assert check.loc[2, "share_unique_observed"] == pytest.approx(10 / n)
+    assert check["share_unique_model"].between(0, 1).all()
+    assert (check["share_unique_model"] >= est["share_unique_model"]).all()   # uniqueness falls with population size
+    assert_safe_table(pop, "uniqueness_population")
+    assert not pop.astype(str).apply(lambda c: c.str.contains("female|20-29|e3|o3")).any().any()
+
+
+def test_population_estimate_treats_region_and_country_as_one_factor():
+    n = 100
+    df = pd.DataFrame({"dataset": "d", "variant": "stated_only", "level": "coarse",
+                       "user": [f"u{i}" for i in range(n)], "activity_bucket": "3",
+                       "region": ["west"] * 2 + [None] * 98, "country": ["us"] * 2 + [None] * 98})
+    for d in DIMENSIONS:
+        if d not in df:
+            df[d] = None
+    acfg, ucfg = {"bootstrap_reps": 20, "ci_level": 0.95}, {"population_bootstrap_reps": 20}
+    _, _, summary = uniqueness.analyze(df, ucfg, acfg, seed=1, min_cell=10)
+    est = uniqueness.population_estimate(df, summary, {"d": 300}, ucfg, acfg, seed=1)
+    est = est[est["subset"] == "population"].set_index("n_qi")["share_unique_model"]
+    # A region that implies its country adds nothing: the pair is no more identifying than either alone.
+    assert est[2] == pytest.approx(est[1])

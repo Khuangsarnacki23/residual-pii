@@ -207,8 +207,13 @@ class Pipeline:
         report.write_table(by_combo, t, "uniqueness_by_combination")
         report.write_table(by_activity, t, "uniqueness_by_activity")
         report.write_table(summary, t, "uniqueness_summary")
+        # The users a user-level sample stands for: everyone meeting the minimum-conversations rule.
+        eligible = {ds: m["sampling"].get("eligible_users") for ds, m in self.manifest["datasets"].items()}
+        pop = uniqueness.population_estimate(prof, summary, eligible, self.cfg.get("uniqueness", {}),
+                                             self.cfg["analysis"], self.cfg["seed"], self.min_cell)
+        report.write_table(pop, t, "uniqueness_population")
         log(f"[uniqueness] {prof['user'].nunique():,} users, {len(by_combo):,} combination rows")
-        return report.uniqueness_figures(summary, self.paths.figures)
+        return report.uniqueness_figures(summary, self.paths.figures, pop)
 
     def dedup_sample(self, lmsys_turns: pd.DataFrame) -> pd.DataFrame:
         """lmsys sample vs the full English Arena corpus (Arena is ~40 MB, so this is cheap)."""

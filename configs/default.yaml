@@ -125,6 +125,9 @@ uniqueness:
   # (those smaller than the sample) are reported alongside the full sample to show the trend.
   sample_sizes: [500, 1000, 2000]
   subsample_draws: 20
+  # Model-based estimate among all eligible users (uniqueness_population.csv).
+  population_prior: 0.5        # pseudo-users added to each cell count, so a value seen once is not "never"
+  population_bootstrap_reps: 200
 
 # Hand labeling (residpii label-export / label-score).
 label:

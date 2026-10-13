@@ -104,9 +104,11 @@ PROFILE_VARIANT_LABELS = {"stated_only": "Stated only", "stated_plus_inferred": 
 LEVEL_LABELS = {"fine": "Fine coarsening", "coarse": "Coarse coarsening"}
 
 
-def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path) -> list[str]:
+def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.DataFrame | None = None) -> list[str]:
     """Share of sampled users unique on >= 1 combination, against the number of quasi-identifiers.
-    One line per profile variant, one panel per coarsening level, one file per dataset."""
+    One line per profile variant, one panel per coarsening level, one file per dataset. Dashed lines
+    are the modelled share among all eligible users, when `population` holds that estimate."""
+    pop = None if population is None else population[population["subset"] == "population"]
     made = []
     full = summary[(summary["ci_kind"] == "bootstrap_users") & summary["share_unique"].notna()]
     for ds, d in full.groupby("dataset"):
@@ -120,9 +122,14 @@ def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path) -> list[str]:
                 ax.fill_between(v["n_qi"], v["ci_low"], v["ci_high"], color=color, alpha=0.15, linewidth=0)
                 ax.plot(v["n_qi"], v["share_unique"], color=color, linewidth=2, marker="o", markersize=6,
                         markeredgecolor="white", markeredgewidth=1.5, label=PROFILE_VARIANT_LABELS[variant])
+                e = None if pop is None else pop[(pop["dataset"] == ds) & (pop["level"] == level)
+                                                 & (pop["variant"] == variant)].sort_values("n_qi")
+                if e is not None and len(e):
+                    ax.plot(e["n_qi"], e["share_unique_model"], color=color, linewidth=1.5, linestyle=(0, (4, 2)))
             ax.set_title(LEVEL_LABELS[level], fontsize=10, color=TEXT_PRIMARY, loc="left")
             ax.set_xticks(sorted(d["n_qi"].unique()))
             ax.set_xlabel("Quasi-identifiers combined (up to)", fontsize=9)
+            ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10]))   # whole percents
             ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
             ax.set_ylim(0, max(0.05, float(d["ci_high"].max()) * 1.1))
             _style(ax)
@@ -130,11 +137,15 @@ def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path) -> list[str]:
             ax.grid(axis="y", color=GRID, linewidth=0.8)
         axes[0][0].set_ylabel("Sampled users unique on ≥1 combination", fontsize=9, color=TEXT_SECONDARY)
         handles, labels = axes[0][0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc="upper right", ncol=2, frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
+        big = None if pop is None or pop[pop["dataset"] == ds].empty else int(pop.loc[pop["dataset"] == ds, "target_users"].iloc[0])
+        if big:
+            handles.append(plt.Line2D([], [], color=TEXT_SECONDARY, linewidth=1.5, linestyle=(0, (4, 2))))
+            labels.append(f"Modelled, all {big:,} eligible users")
+        fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
         n = int(d["sample_users"].iloc[0])
         fig.suptitle(f"{DATASET_LABELS.get(ds, ds)}: within-sample uniqueness (n = {n:,} users, 95% bootstrap CI)",
                      x=0.01, ha="left", fontsize=11, color=TEXT_PRIMARY)
-        fig.tight_layout(rect=(0, 0, 1, 0.92))
+        fig.tight_layout(rect=(0, 0.07, 1, 0.92))
         name = f"uniqueness_by_n_qi_{ds}"
         for ext in ("png", "pdf"):
             fig.savefig((fig_dir / name).with_suffix(f".{ext}"), dpi=200)
@@ -232,7 +243,12 @@ combination, overall and by number of conversations.
 
 Uniqueness is measured within the sample and therefore overstates uniqueness in the population of
 all users; we report it at several sample sizes to show how it falls as the sample grows (see Rocher,
-Hendrickx & de Montjoye, 2019, for the population-level argument). Cells based on fewer than
+Hendrickx & de Montjoye, 2019, for the population-level argument). To estimate uniqueness among all
+eligible users we modelled the chance that another user matches a given user on a combination as
+the product of the leave-one-out shares of sampled users with the same value on each dimension
+(region and country jointly, the other dimensions independently), and took a user to be unique
+among M users when none of the other M - 1 would match. The same model evaluated at the sample
+sizes we observed is reported next to the observed shares as a check. Cells based on fewer than
 {min_cell} users are suppressed. We did not attempt to identify any user.
 
 """

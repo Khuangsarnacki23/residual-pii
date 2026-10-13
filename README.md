@@ -149,6 +149,7 @@ results/<run>/   aggregate outputs (safe to commit)
 | `uniqueness_by_combination.csv` | Per combination of 1–4 dimensions: users, share with k = 1 and k < 5, median k, CIs. |
 | `uniqueness_by_activity.csv` | Share of users unique on ≥1 combination, by conversations-per-user bucket. |
 | `uniqueness_summary.csv` | The same share for all users, and at smaller sample sizes. |
+| `uniqueness_population.csv` | Modelled share unique among all eligible users, and the model's prediction at the observed sample sizes beside the observed share. |
 | `detector_validation.csv` | Precision, recall, F1 per detector × category; LLM-vs-human kappa on `about`. |
 | `llm_attribute_review.csv` | Manual check of LLM extractions: reviewed count and share where the value is right, `about` and evidence agree, or the model missed something. |
 

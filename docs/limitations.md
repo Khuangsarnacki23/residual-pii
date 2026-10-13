@@ -103,6 +103,15 @@ figures are not separated from private individuals.
   share falls as the sample grows; `uniqueness_summary.csv` shows this at several sample sizes. Do
   not report the within-sample share as "X% of users are identifiable". For the population-level
   argument and a way to estimate it, see Rocher, Hendrickx & de Montjoye (2019).
+- **The population estimate is a model, and a simple one.** `uniqueness_population.csv` assumes the
+  dimensions are independent of each other (region and country apart). Where attributes go together
+  in reality (a job that is common in one country), a match is more likely than the model says and
+  the estimate is too high; where they rarely go together it is too low. A value seen once in the
+  sample is given half a pseudo-user (`uniqueness.population_prior`), and the result moves with that
+  choice. The check rows compare the model with observed uniqueness at the sample sizes we have,
+  which says the model fits there, not that it extrapolates. Its bootstrap interval is skewed
+  upward, because a resample holds fewer distinct users than the sample. "Population" means users
+  of this dataset with enough conversations to be sampled, not the public.
 - **Unique is not identified.** k = 1 means no other sampled user shares the combination. Turning
   that into an identity needs outside data, which we never use.
 - **Bootstrap intervals hold class sizes fixed** and resample users, so they show sampling noise in
