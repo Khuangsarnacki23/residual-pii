@@ -34,6 +34,9 @@ def test_attribute_check_keeps_values_restricted(llm_run, capfd):
     abouts = [i["about"] for i in items]
     assert abouts.count("user") >= 3 and "fictional" in abouts          # both halves of the sample
     assert any(c in i["value"] + i["text"] for i in items for c in CANARIES)   # raw text and values, on the page only
+    # A turn with several extractions lists the rest beside the one under review, without repeating it.
+    multi = [i for i in items if i["others"]]
+    assert multi and all(i["value"] not in [o["value"] for o in i["others"]] for i in multi)
     first = items[0]
     out = rv.save_attr(first["item_id"], {"value_ok": "correct", "about_human": first["about"],
                                           "evidence_human": "stated", "missed": "no", "notes": "fine"})

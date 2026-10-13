@@ -212,6 +212,11 @@ function renderAttrs() {
         h("tr", {}, h("th", {}, "About"), h("td", {}, nice(it.about))),
         h("tr", {}, h("th", {}, "Evidence"), h("td", {}, nice(it.evidence))),
         h("tr", {}, h("th", {}, "Confidence"), h("td", {}, it.confidence.toFixed(2)))),
+      h("div", { class: "q" }, h("div", {}, "Also extracted from this message"),
+        it.others.length
+          ? h("table", { class: "facts" }, it.others.map((o) => h("tr", {}, h("th", {}, nice(o.attribute_type)),
+              h("td", {}, o.value, h("span", { class: "empty" }, ` · ${nice(o.about)}, ${nice(o.evidence)}`)))))
+          : h("div", { class: "empty" }, "Nothing else.")),
       h("div", { class: "q" }, h("button", { class: "primary", on: { click: () => allRight(it) } }, "All correct, nothing missed"),
         h("span", { class: "empty" }, "  or press ", h("kbd", {}, "Enter")))),
     h("div", { class: "card" },
@@ -221,7 +226,8 @@ function renderAttrs() {
         pills(overview.llm_about, a.about_human, (v) => answer(it, "about_human", v), { [it.about]: "model" })),
       h("div", { class: "q" }, h("div", {}, "Is it said outright or only implied?"),
         pills(["stated", "inferred", "unsupported"], a.evidence_human, (v) => answer(it, "evidence_human", v), { [it.evidence]: "model" })),
-      h("div", { class: "q" }, h("div", {}, "Did the model miss anything else about the user in this message?"),
+      h("div", { class: "q" }, h("div", {}, "Did the model miss anything about the user in this message?"),
+        h("div", { class: "empty", style: { margin: "-4px 0 6px" } }, "Count only what is in neither the value above nor the “also extracted” list: job, employer, place, age, gender, school, education, relationship, nationality, native language. Names and contact details don't count."),
         pills(["no", "yes"], a.missed, (v) => answer(it, "missed", v))),
       h("div", { class: "q" }, h("div", {}, "Notes"),
         h("textarea", { placeholder: "Optional. Don't copy the message here.", on: { change: (e) => { a.notes = e.target.value; saveAttr(it).catch(() => {}); } } }, a.notes))));

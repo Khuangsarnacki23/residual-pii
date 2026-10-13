@@ -74,6 +74,7 @@ class Review:
         self.dir = self.restricted / "labels"
         self.categories = list(pipe.taxonomy["categories"])
         self._rev = self._attr_view = None
+        self._others: dict = {}
         self._batch: tuple[str, list[dict]] | None = None
 
     # ------------------------------------------------------------------ shared
@@ -144,6 +145,12 @@ class Review:
                         for r in view.itertuples(index=False)]
         view["previous"] = [texts.get((r.dataset, r.conversation_id, r.turn_index - 1), "")[:MAX_CONTEXT_CHARS]
                             for r in view.itertuples(index=False)]
+        # Everything else the model took from the same turn, so "did it miss anything" can be answered.
+        turn = ["dataset", "conversation_id", "turn_index"]
+        same = view[["item_id", *turn, "value_hmac"]].merge(attrs, on=turn, suffixes=("_shown", ""))
+        same = same[same["value_hmac"] != same["value_hmac_shown"]]
+        self._others = {k: g[["attribute_type", "value", "about", "evidence"]].to_dict("records")
+                        for k, g in same.groupby("item_id")}
         self._rev, self._attr_view = rev, view.set_index("item_id")
         return rev
 
@@ -171,7 +178,8 @@ class Review:
                           "evidence": r["evidence"], "about": r["about"], "confidence": float(r["confidence"]),
                           "occupation_group": group if isinstance(group, str) else "",
                           "text": v["text"][:max_chars], "truncated": len(v["text"]) > max_chars,
-                          "previous": v["previous"], "answers": {c: r[c] for c in ANSWER_COLUMNS}})
+                          "previous": v["previous"], "others": self._others.get(r["item_id"], []),
+                          "answers": {c: r[c] for c in ANSWER_COLUMNS}})
         return {"items": items, "tally": self._tally(rev)}
 
     def save_attr(self, item_id: str, answers: dict) -> dict:
