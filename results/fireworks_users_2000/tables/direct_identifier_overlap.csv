@@ -1,0 +1,11 @@
+dataset,variant,level,category,n_users,n_direct,share_direct,n_direct_and_unique,share_direct_and_unique,suppressed
+wildchat,stated_only,generalized,any,2000,167,0.0835,41,0.0205,False
+wildchat,stated_only,generalized,api_key_token,2000,,,,,True
+wildchat,stated_only,generalized,email,2000,,,,,True
+wildchat,stated_only,generalized,name,2000,35,0.0175,21,0.0105,False
+wildchat,stated_only,generalized,phone,2000,113,0.0565,20,0.01,False
+wildchat,stated_plus_inferred,generalized,any,2000,167,0.0835,55,0.0275,False
+wildchat,stated_plus_inferred,generalized,api_key_token,2000,,,,,True
+wildchat,stated_plus_inferred,generalized,email,2000,,,,,True
+wildchat,stated_plus_inferred,generalized,name,2000,35,0.0175,23,0.0115,False
+wildchat,stated_plus_inferred,generalized,phone,2000,113,0.0565,30,0.015,False

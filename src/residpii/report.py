@@ -250,7 +250,15 @@ the product of the leave-one-out shares of sampled users with the same value on 
 (region and country jointly, the other dimensions independently), and took a user to be unique
 among M users when none of the other M - 1 would match. The same model evaluated at the sample
 sizes we observed is reported next to the observed shares as a check. Cells based on fewer than
-{min_cell} users are suppressed. We did not attempt to identify any user.
+{min_cell} users are suppressed.
+
+To test whether these attributes would let records be linked, we split each user's conversations at
+random into two halves, built a profile from each half, and matched every first half against all
+second halves, scoring a shared value by the negative log of its share among second halves. A user
+is linked when their own second half is the single best match. We repeated this with direct
+identifiers detected in user turns (self-stated names, email addresses, phone numbers, credentials,
+compared by keyed hash) and with both together, and averaged over repeated random splits. No outside
+data was used, and we did not attempt to identify any user.
 
 """
 

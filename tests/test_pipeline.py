@@ -281,7 +281,8 @@ def test_llm_stage_outputs(llm_run):
         assert not [f.name for f in root.rglob("*") if "profiles" in f.name or "llm_attrs" in f.name
                     or "llm_cache" in f.name]
 
-    for name in ("profile_summary", "uniqueness_by_combination", "uniqueness_by_activity", "uniqueness_summary"):
+    for name in ("profile_summary", "uniqueness_by_combination", "uniqueness_by_activity", "uniqueness_summary",
+                 "linkage", "direct_identifier_overlap"):
         assert (t / f"{name}.csv").exists(), name
     summ = pd.read_csv(t / "uniqueness_summary.csv")
     assert summ["share_unique"].notna().any()

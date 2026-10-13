@@ -1,7 +1,7 @@
 {
   "pipeline_version": "0.2.0",
   "run_name": "fireworks_users_2000",
-  "config_hash": "16430a85eb032629",
+  "config_hash": "fae6f75b50f077ba",
   "sampling_mode": "user_level",
   "roles": [
     "user",

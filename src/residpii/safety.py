@@ -82,6 +82,8 @@ SAFE_TEXT_COLUMNS = {
     "attribute_type", "evidence", "about", "backend", "prompt_version",
     # Profile dimension names and coarsening labels (profiles.DIMENSIONS / LEVELS); never values.
     "attribute", "level", "combination", "ci_kind",
+    # What two halves of a user's conversations are matched on (linkage.MATCH_ON); never values.
+    "match_on",
 }
 
 

@@ -121,6 +121,17 @@ figures are not separated from private individuals.
   the current definition should be read as sitting inside that range, not as exact.
 - **Unique is not identified.** k = 1 means no other sampled user shares the combination. Turning
   that into an identity needs outside data, which we never use.
+- **Linkage is tested inside the dataset only.** `linkage.csv` splits each user's conversations in
+  two and asks whether one half finds the other. That shows the mechanism of a linkage attack, not a
+  re-identification: an attacker with outside data would hold different attributes, possibly more.
+  The matching rule is simple (shared values, weighted by rarity; a contradiction is not penalised),
+  so a better matcher would link more. A user who repeats the same prompt in several conversations
+  links easily, which is real but says little about what they revealed. The ground truth is the
+  `hashed_ip` proxy, with the errors described above.
+- **Direct identifiers here are noisy.** `direct_identifier_overlap.csv` counts self-introductions,
+  emails, phone numbers and credentials in user turns. Presidio's phone pattern also fires on other
+  digit strings, a self-introduction can be a role-play persona, and none of these is checked by
+  hand yet. WildChat already redacted most emails. Treat the counts as upper bounds.
 - **Bootstrap intervals hold class sizes fixed** and resample users, so they show sampling noise in
   the share, not uncertainty in the classes, in the extraction, or in the proxy.
 - **Missing is not absent.** A combination is only evaluated for users who revealed every

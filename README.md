@@ -126,6 +126,7 @@ src/residpii/
   llm.py         LLM quasi-identifier extraction: backends, strict parser, cache, aggregates
   profiles.py    per-user profiles: coarsening, conflict resolution, variants
   uniqueness.py  equivalence-class sizes per quasi-identifier combination, bootstrap CIs
+  linkage.py     split-half linkage of a user's conversations; direct identifiers vs unique profiles
   label.py       labeling export, span matching, precision/recall/F1, Cohen's kappa
   dedup.py       exact + MinHash-LSH near-duplicate matching
   analysis.py    weighted prevalence, stratified bootstrap CIs, threshold sensitivity
@@ -150,6 +151,8 @@ results/<run>/   aggregate outputs (safe to commit)
 | `uniqueness_by_activity.csv` | Share of users unique on ≥1 combination, by conversations-per-user bucket. |
 | `uniqueness_summary.csv` | The same share for all users, and at smaller sample sizes. |
 | `uniqueness_population.csv` | Modelled share unique among all eligible users, and the model's prediction at the observed sample sizes beside the observed share. |
+| `linkage.csv` | Each user's conversations split in two at random: share whose halves match each other best, on profile attributes, on direct identifiers (by hash), or both; with the chance rate. |
+| `direct_identifier_overlap.csv` | Users with a self-stated name, email, phone number or credential in their own turns, and how many of them also have a unique profile. |
 | `detector_validation.csv` | Precision, recall, F1 per detector × category; LLM-vs-human kappa on `about`. |
 | `llm_attribute_review.csv` | Manual check of LLM extractions: reviewed count and share where the value is right, `about` and evidence agree, or the model missed something. |
 

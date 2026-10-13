@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from residpii import llm, uniqueness
+from residpii import linkage, llm, uniqueness
 from residpii.safety import assert_safe_table
 from residpii.config import REPO_ROOT, load_config
 from residpii.pipeline import Pipeline
@@ -466,3 +466,65 @@ def test_population_estimate_treats_region_and_country_as_one_factor():
     est = est[est["subset"] == "population"].set_index("n_qi")["share_unique_model"]
     # A region that implies its country adds nothing: the pair is no more identifying than either alone.
     assert est[2] == pytest.approx(est[1])
+
+
+# ---------------------------------------------------------------- linkage
+
+
+def _linkage_inputs(n_users: int = 12):
+    """Each user has four conversations. Users 0-5 state their own distinct region in every one, so
+    any split links them. Users 6-9 all state the same gender, so they cannot be told apart. Users
+    10-11 state nothing but each repeats an email address of their own."""
+    regions = ["Texas", "Ohio", "California", "Florida", "New York", "Illinois"]
+    attrs, spans, convs = [], [], {}
+    for u in range(n_users):
+        for c in range(4):
+            cid = f"c{u}_{c}"
+            convs[cid] = f"u{u}"
+            if u < 6:
+                attrs.append((cid, "state_or_region", regions[u]))
+            elif u < 10:
+                attrs.append((cid, "gender", "woman"))
+            else:
+                spans.append((cid, "presidio", "email", f"hash{u}"))
+            spans.append((cid, "presidio", "name", "shared"))            # not a direct key: ignored
+    attrs = pd.DataFrame(attrs, columns=["conversation_id", "type", "value"]).assign(
+        dataset="d", turn_index=0, evidence="stated", about="user", confidence=0.9, occupation_group="",
+        occupation_minor_group="")
+    spans = pd.DataFrame(spans, columns=["conversation_id", "detector", "category", "span_hmac"]).assign(
+        dataset="d", role="user", in_placeholder=False, is_dummy=False)
+    sample = pd.DataFrame({"dataset": "d", "conversation_id": list(convs), "user_key": list(convs.values()),
+                           "user_n_conversations": 4})
+    tlog = pd.DataFrame({"dataset": "d", "conversation_id": list(convs), "turn_index": 0, "status": "ok"})
+    return attrs, tlog, sample, spans
+
+
+def test_linkage_links_only_distinguishable_users():
+    attrs, tlog, sample, spans = _linkage_inputs()
+    ucfg, acfg = {"linkage_splits": 3}, {"bootstrap_reps": 50, "ci_level": 0.95}
+    out = linkage.analyze(attrs, tlog, sample, spans, load_coarsener(_cfg()), 0.6, ucfg, acfg, seed=1, min_cell=1)
+    assert_safe_table(out, "linkage")
+    r = out[out["activity_bucket"] == "all"].set_index(["variant", "match_on"])
+    # Six of twelve users have a region of their own; the four who share a gender tie and do not link.
+    assert r.loc[("stated_only", "profile"), "share_linked"] == pytest.approx(6 / 12)
+    assert r.loc[("stated_only", "profile"), "share_both_halves"] == pytest.approx(10 / 12)
+    assert r.loc[("stated_only", "profile"), "share_linked_given_both"] == pytest.approx(6 / 10)
+    # The two users with a repeated email link on direct identifiers alone; a shared name span is not a key.
+    assert r.loc[("any", "direct_identifiers"), "share_linked"] == pytest.approx(2 / 12)
+    assert r.loc[("stated_only", "profile_and_direct"), "share_linked"] == pytest.approx(8 / 12)
+    assert np.allclose(r["chance"], 1 / 12)
+    assert (r["ci_low"] <= r["share_linked"]).all() and (r["share_linked"] <= r["ci_high"]).all()
+    # With the real threshold a bucket of 12 users is published and nothing smaller would be.
+    small = linkage.analyze(attrs, tlog, sample, spans, load_coarsener(_cfg()), 0.6, ucfg, acfg, seed=1, min_cell=13)
+    assert small["suppressed"].all() and small["share_linked"].isna().all()
+
+
+def test_direct_overlap_counts_users_not_values():
+    attrs, tlog, sample, spans = _linkage_inputs()
+    prof = build_profiles(attrs, tlog, sample, load_coarsener(_cfg()), 0.6)
+    out = linkage.direct_overlap(prof, sample, spans, tlog, {}, min_cell=1)
+    assert_safe_table(out, "direct_identifier_overlap")
+    r = out[out["variant"] == "stated_only"].set_index("category")
+    assert r.loc["any", "n_direct"] == 2 and r.loc["email", "n_direct"] == 2 and r.loc["phone", "n_direct"] == 0
+    assert r.loc["any", "n_direct_and_unique"] == 0          # the email users revealed no profile attribute
+    assert linkage.direct_overlap(prof, sample, spans, tlog, {}, min_cell=10)["suppressed"].any()

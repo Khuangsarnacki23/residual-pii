@@ -1,4 +1,4 @@
-# Methods summary (auto-generated 2026-10-12; adapt before use)
+# Methods summary (auto-generated 2026-10-13; adapt before use)
 
 ## Data
 We analysed three public chat-log datasets, pinned to the following Hugging Face revisions:
@@ -57,11 +57,12 @@ of 14,985 turns). Turns longer than 6,000 characters were truncated. Extracted
 values were stored only in the access-restricted directory.
 
 ## Per-user profiles and uniqueness
-For each user we kept attributes about the user with confidence >= 0.6 and mapped
-them with fixed lookup tables (configs/coarsening.yaml) onto six dimensions: region, occupation
-group, age band, gender, education level and country. Values the tables do not cover were set to
-`unknown`. We used two coarsening levels (fine: state or region, 10-year age band, SOC minor group
-where available; coarse: census region or country, 20-year age band, SOC major group) and two
+For each user we kept attributes about the user with confidence >= 0.6 and built a
+profile on eleven dimensions. Six were generalised with fixed lookup tables (configs/coarsening.yaml)
+so that different wordings of one fact match: state or region, country, occupation (SOC minor group
+where available, else major group), 10-year age band, gender and education level; a value the
+tables do not cover was set to `unknown`. Five have no table and were kept as stated (normalised
+text): employer type, school, relationship status, nationality and native language. We report two
 variants (stated attributes only; stated plus inferred). When a user's conversations disagreed we
 took the majority value and treated ties as ambiguous.
 
@@ -73,8 +74,21 @@ combination, overall and by number of conversations.
 
 Uniqueness is measured within the sample and therefore overstates uniqueness in the population of
 all users; we report it at several sample sizes to show how it falls as the sample grows (see Rocher,
-Hendrickx & de Montjoye, 2019, for the population-level argument). Cells based on fewer than
-10 users are suppressed. We did not attempt to identify any user.
+Hendrickx & de Montjoye, 2019, for the population-level argument). To estimate uniqueness among all
+eligible users we modelled the chance that another user matches a given user on a combination as
+the product of the leave-one-out shares of sampled users with the same value on each dimension
+(region and country jointly, the other dimensions independently), and took a user to be unique
+among M users when none of the other M - 1 would match. The same model evaluated at the sample
+sizes we observed is reported next to the observed shares as a check. Cells based on fewer than
+10 users are suppressed.
+
+To test whether these attributes would let records be linked, we split each user's conversations at
+random into two halves, built a profile from each half, and matched every first half against all
+second halves, scoring a shared value by the negative log of its share among second halves. A user
+is linked when their own second half is the single best match. We repeated this with direct
+identifiers detected in user turns (self-stated names, email addresses, phone numbers, credentials,
+compared by keyed hash) and with both together, and averaged over repeated random splits. No outside
+data was used, and we did not attempt to identify any user.
 
 ## Limitations (summary)
 Results are detector-reported prevalence and have not yet been validated against human labels, so

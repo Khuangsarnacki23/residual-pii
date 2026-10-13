@@ -128,6 +128,7 @@ uniqueness:
   # Model-based estimate among all eligible users (uniqueness_population.csv).
   population_prior: 0.5        # pseudo-users added to each cell count, so a value seen once is not "never"
   population_bootstrap_reps: 200
+  linkage_splits: 20           # random split-half repetitions averaged in linkage.csv
 
 # Hand labeling (residpii label-export / label-score).
 label:

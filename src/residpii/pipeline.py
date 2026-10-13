@@ -13,7 +13,7 @@ from typing import Callable
 
 import pandas as pd
 
-from . import analysis, dedup, detect, label, llm, profiles, redactions, report, uniqueness
+from . import analysis, dedup, detect, label, linkage, llm, profiles, redactions, report, uniqueness
 from .config import Paths, load_taxonomy, stable_hash
 from .safety import load_or_create_key, safe_count, suppress_small_cells
 from .sampling import NoUserProxy, eligible, stratified_sample, user_activity, user_level_sample
@@ -177,7 +177,8 @@ class Pipeline:
             f"{len(attrs):,} attributes")
         return attrs, turn_log
 
-    def identifiability(self, sample: pd.DataFrame, attrs: pd.DataFrame, turn_log: pd.DataFrame) -> list[str]:
+    def identifiability(self, sample: pd.DataFrame, attrs: pd.DataFrame, turn_log: pd.DataFrame,
+                        spans: pd.DataFrame | None = None) -> list[str]:
         """LLM aggregates -> per-user profiles (restricted) -> uniqueness tables and figure."""
         t, lcfg, backend = self.paths.tables, self.cfg["llm"], self.llm_backend()
         report.write_table(llm.attribute_prevalence(attrs, turn_log, sample, self.min_cell), t,
@@ -194,8 +195,9 @@ class Pipeline:
         # Profiles need a user to attach to; datasets without a user proxy stop at the tables above.
         with_proxy = sample.groupby("dataset")["user_key"].agg(lambda s: s.notna().any())
         keep = [ds for ds in turn_log["dataset"].unique() if with_proxy.get(ds, False)]
-        prof = profiles.build_profiles(attrs[attrs["dataset"].isin(keep)], turn_log[turn_log["dataset"].isin(keep)],
-                                       sample, profiles.load_coarsener(self.cfg), float(lcfg["min_confidence"]))
+        attrs, turn_log = attrs[attrs["dataset"].isin(keep)], turn_log[turn_log["dataset"].isin(keep)]
+        coarsener, min_conf = profiles.load_coarsener(self.cfg), float(lcfg["min_confidence"])
+        prof = profiles.build_profiles(attrs, turn_log, sample, coarsener, min_conf)
         for ds, g in prof.groupby("dataset"):
             g.to_parquet(self.paths.restricted / f"profiles_{ds}.parquet", index=False)
         if prof.empty:
@@ -212,6 +214,13 @@ class Pipeline:
         pop = uniqueness.population_estimate(prof, summary, eligible, self.cfg.get("uniqueness", {}),
                                              self.cfg["analysis"], self.cfg["seed"], self.min_cell)
         report.write_table(pop, t, "uniqueness_population")
+        if spans is not None:
+            # Split-half linkage inside the dataset, and direct identifiers next to unique profiles.
+            ucfg = self.cfg.get("uniqueness", {})
+            report.write_table(linkage.analyze(attrs, turn_log, sample, spans, coarsener, min_conf, ucfg,
+                                               self.cfg["analysis"], self.cfg["seed"], self.min_cell), t, "linkage")
+            report.write_table(linkage.direct_overlap(prof, sample, spans, turn_log, ucfg, self.min_cell), t,
+                               "direct_identifier_overlap")
         log(f"[uniqueness] {prof['user'].nunique():,} users, {len(by_combo):,} combination rows")
         return report.uniqueness_figures(summary, self.paths.figures, pop)
 
@@ -387,7 +396,7 @@ class Pipeline:
         extra_figures = []
         if llm_logs:
             extra_figures = self.identifiability(sample, pd.concat(llm_attrs, ignore_index=True),
-                                                 pd.concat(llm_logs, ignore_index=True))
+                                                 pd.concat(llm_logs, ignore_index=True), spans_df)
         self.analyze(conv, sample, spans_df, stats_df, extra_figures)
         return self.manifest
 
