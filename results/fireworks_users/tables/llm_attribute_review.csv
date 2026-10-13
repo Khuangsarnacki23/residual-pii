@@ -1,0 +1,5 @@
+metric,n_reviewed,n_yes,share,suppressed
+value_correct,20,20,1,False
+about_agrees,20,20,1,False
+evidence_agrees,20,19,0.95,False
+turn_has_missed_attribute,20,0,0,False
