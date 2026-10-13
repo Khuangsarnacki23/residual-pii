@@ -291,6 +291,9 @@ class Pipeline:
     def label_score(self, labels_path: str | Path, second_annotator: str | None = None) -> pd.DataFrame:
         """Scores stored detector spans against an annotated batch -> tables/detector_validation.csv."""
         labels = label.read_labels(labels_path)
+        # A turn nobody has labeled yet has no gold spans; scoring it would count every detection
+        # in it as a false positive, so a partly annotated batch is scored on its labeled turns.
+        labels = labels[labels.groupby("item_id")["pii_type"].transform(lambda s: (s != "").any())]
         min_overlap = float(self.cfg["label"]["match_min_overlap"])
         gold, skipped = label.gold_spans(labels, list(self.taxonomy["categories"]))
         items = labels.drop_duplicates(label.TURN)[[*label.TURN, "text"]]

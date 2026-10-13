@@ -98,7 +98,14 @@ their credentials from the environment.
 `label-export` writes a stratified batch of user turns to
 `~/.residual-pii/runs/<run>/restricted/labels/`. Annotate it there, following
 [docs/annotation_guide.md](docs/annotation_guide.md). `label-score` writes precision, recall and F1
-per detector and category to `results/<run>/tables/detector_validation.csv`.
+per detector and category to `results/<run>/tables/detector_validation.csv`. A batch that is only
+partly annotated is scored on the turns that have labels.
+
+`residpii review --config <config>` does both steps in a browser page instead of a spreadsheet, and
+adds a check of the LLM detector: a sample of its extractions (`--n-attrs`, default 20), each next
+to the message it came from, to mark as right or wrong. The page is served on 127.0.0.1 only, needs
+the one-time token in the address it prints, loads nothing from the network, and writes answers
+only to `restricted/labels/`. Stop it with Ctrl-C.
 
 ### Storage
 Data is streamed column by column from the Hub; nothing is downloaded in full. Text is read only
@@ -143,6 +150,7 @@ results/<run>/   aggregate outputs (safe to commit)
 | `uniqueness_by_activity.csv` | Share of users unique on ≥1 combination, by conversations-per-user bucket. |
 | `uniqueness_summary.csv` | The same share for all users, and at smaller sample sizes. |
 | `detector_validation.csv` | Precision, recall, F1 per detector × category; LLM-vs-human kappa on `about`. |
+| `llm_attribute_review.csv` | Manual check of LLM extractions: reviewed count and share where the value is right, `about` and evidence agree, or the model missed something. |
 
 In these tables a cell based on fewer than `publication.min_cell` (10) users is blank and the row
 has `suppressed = True`.

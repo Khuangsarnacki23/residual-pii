@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual review</title>
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffff; --ink: #1c1d1f; --muted: #686c73; --line: #dcdcd7;
+  --accent: #2456c9; --accent-ink: #ffffff; --soft: #eef2fb; --good: #1e7a46; --bad: #b3261e;
+  --mark: #ffe08a; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #17181a; --panel: #212326; --ink: #ececec; --muted: #9ea3aa; --line: #383b40;
+    --accent: #8fb0ff; --accent-ink: #10131a; --soft: #2a3040; --good: #6fd09a; --bad: #ff8a80;
+    --mark: #6b5a17; --shadow: none; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px 24px;
+  background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+h1 { font-size: 16px; margin: 0; font-weight: 650; }
+h1 small { font-weight: 400; color: var(--muted); margin-left: 8px; }
+h2 { font-size: 14px; margin: 0 0 8px; font-weight: 650; }
+.tabs { display: flex; gap: 6px; }
+.tab { border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 7px 14px;
+  border-radius: 999px; font: inherit; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tab .count { opacity: .75; margin-left: 6px; font-variant-numeric: tabular-nums; }
+#status { margin-left: auto; color: var(--muted); font-size: 13px; min-width: 70px; text-align: right; }
+#status.error { color: var(--bad); }
+main { max-width: 1180px; margin: 0 auto; padding: 20px 24px 60px; }
+.notice { background: var(--soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 13.5px; }
+.grid { margin-bottom: 14px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+.card + .card { margin-top: 14px; }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 62vh; overflow: auto;
+  font: 14.5px/1.6 ui-serif, Georgia, serif; padding: 2px 4px; }
+.text.selectable { cursor: text; }
+.text mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 1px 0; }
+.label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+details { margin-top: 12px; color: var(--muted); font-size: 13.5px; }
+details .text { max-height: 200px; font-size: 13.5px; margin-top: 6px; }
+summary { cursor: pointer; }
+table.facts { border-collapse: collapse; width: 100%; }
+table.facts th { text-align: left; font-weight: 400; color: var(--muted); padding: 3px 12px 3px 0; white-space: nowrap; vertical-align: top; }
+table.facts td { padding: 3px 0; overflow-wrap: anywhere; }
+td.value { font-weight: 650; }
+.q { margin-top: 14px; }
+.q > div:first-child { font-weight: 600; margin-bottom: 6px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill, button.plain { border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px;
+  border-radius: 8px; font: inherit; cursor: pointer; }
+.pill:hover, button.plain:hover { border-color: var(--accent); }
+.pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pill .hint { opacity: .7; font-size: 12px; margin-left: 4px; }
+button.primary { border: 0; background: var(--accent); color: var(--accent-ink); padding: 8px 16px; border-radius: 8px;
+  font: inherit; font-weight: 600; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+textarea, select, input[type=number] { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 8px; }
+textarea { width: 100%; min-height: 56px; resize: vertical; }
+.nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.nav .where { font-variant-numeric: tabular-nums; color: var(--muted); margin: 0 4px; }
+.bar { flex: 1; min-width: 120px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--good); width: 0; transition: width .2s; }
+.done-tag { color: var(--good); font-size: 13px; }
+.span-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 6px 0;
+  border-top: 1px solid var(--line); }
+.span-row:first-child { border-top: 0; }
+.span-row .snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; }
+.empty { color: var(--muted); font-size: 13.5px; }
+#popover { position: absolute; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.22); width: 340px; display: none; }
+#popover .pills + .label { margin-top: 10px; }
+table.scores { border-collapse: collapse; font-size: 13px; width: 100%; font-variant-numeric: tabular-nums; }
+table.scores th, table.scores td { padding: 4px 10px 4px 0; text-align: right; border-bottom: 1px solid var(--line); }
+table.scores th:nth-child(-n+3), table.scores td:nth-child(-n+3) { text-align: left; }
+.scroll-x { overflow-x: auto; }
+.guide dt { font-weight: 600; margin-top: 8px; }
+.guide dd { margin: 0; color: var(--muted); }
+kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font: 12px ui-monospace, monospace; }
+.tally { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; color: var(--muted); }
+.tally b { color: var(--ink); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Manual review<small id="run"></small></h1>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-attrs" aria-selected="true">1 · Check the model<span class="count" id="count-attrs"></span></button>
+    <button class="tab" role="tab" id="tab-label" aria-selected="false">2 · Label messages<span class="count" id="count-label"></span></button>
+  </div>
+  <div id="status" role="status"></div>
+</header>
+<main>
+  <div class="notice">This page shows raw user messages and stays on this computer. Don't screenshot it, share your screen,
+    or look anyone up. Your answers save automatically.</div>
+  <section id="view-attrs"></section>
+  <section id="view-label" hidden></section>
+</main>
+<div id="popover"></div>
+<script>
+"use strict";
+const TOKEN = "__TOKEN__";
+const $ = (id) => document.getElementById(id);
+
+// Every piece of data reaches the page through text nodes, never as markup.
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
+    else if (k === "style") Object.assign(el.style, v);
+    else if (v === true) el.setAttribute(k, "");
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+  return el;
+}
+
+let pending = 0;
+function status(msg, isError) { const s = $("status"); s.textContent = msg; s.className = isError ? "error" : ""; }
+async function api(path, body) {
+  pending++; if (body) status("Saving…");
+  try {
+    const res = await fetch(path, { method: body ? "POST" : "GET", body: body ? JSON.stringify(body) : undefined,
+      headers: { "X-Review-Token": TOKEN, "Content-Type": "application/json" } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    pending--; if (!pending) status(body ? "Saved" : "");
+    return data;
+  } catch (e) { pending--; status("Not saved: " + e.message, true); throw e; }
+}
+
+const NICE = { third_party: "someone else", public_figure: "public figure", public: "public", fictional: "fictional",
+  user: "the user", unclear: "unclear", stated: "stated", inferred: "inferred", unsupported: "not in the text" };
+const nice = (v) => NICE[v] || String(v).replace(/_/g, " ");
+
+function pills(options, current, onPick, hints) {
+  return h("div", { class: "pills" }, options.map((o) =>
+    h("button", { class: "pill", type: "button", "aria-pressed": String(o === current), on: { click: () => onPick(o === current ? "" : o) } },
+      nice(o), hints && hints[o] ? h("span", { class: "hint" }, hints[o]) : null)));
+}
+
+let overview, tab = "attrs";
+
+// ------------------------------------------------------------------ 1 · check the model
+const A = { items: [], i: 0, tally: [] };
+
+function markValue(text, value) {
+  const box = h("div", { class: "text" });
+  const low = text.toLowerCase(), needle = value.toLowerCase();
+  if (!needle || low.length !== text.length) { box.textContent = text; return box; }
+  let pos = 0, at;
+  while ((at = low.indexOf(needle, pos)) !== -1) {
+    box.append(text.slice(pos, at), h("mark", {}, text.slice(at, at + needle.length)));
+    pos = at + needle.length;
+  }
+  box.append(text.slice(pos));
+  return box;
+}
+
+const attrDone = (it) => it.answers.value_ok !== "" && it.answers.missed !== "";
+
+async function saveAttr(it) {
+  const r = await api("/api/attr", { item_id: it.item_id, answers: it.answers });
+  A.tally = r.tally; overview.attrs.done = r.done; counts();
+}
+
+function answer(it, field, value) { it.answers[field] = value; renderAttrs(); saveAttr(it).then(renderAttrs, () => {}); }
+
+function allRight(it) {
+  Object.assign(it.answers, { value_ok: "correct", about_human: it.about, evidence_human: it.evidence, missed: "no" });
+  saveAttr(it).then(() => { if (A.i < A.items.length - 1) A.i++; renderAttrs(); }, () => {});
+}
+
+function renderAttrs() {
+  const view = $("view-attrs"), old = view.querySelector(".text");
+  const keep = old && view.dataset.item === String(A.i) ? old.scrollTop : 0;   // answering must not lose your place
+  view.replaceChildren(); view.dataset.item = String(A.i);
+  if (!A.items.length) {
+    view.append(h("div", { class: "card empty" }, "No model extractions were found for this run. Run the pipeline with the LLM stage switched on first."));
+    return;
+  }
+  const it = A.items[A.i], done = A.items.filter(attrDone).length;
+  const go = (d) => { A.i = Math.max(0, Math.min(A.items.length - 1, A.i + d)); renderAttrs(); };
+  view.append(h("div", { class: "nav" },
+    h("button", { class: "plain", disabled: A.i === 0, on: { click: () => go(-1) } }, "← Back"),
+    h("span", { class: "where" }, `${A.i + 1} of ${A.items.length}`),
+    h("button", { class: "plain", disabled: A.i === A.items.length - 1, on: { click: () => go(1) } }, "Next →"),
+    h("div", { class: "bar" }, h("div", { style: { width: (100 * done / A.items.length) + "%" } })),
+    h("span", { class: "where" }, `${done} checked`)));
+
+  const left = h("div", { class: "card" },
+    h("div", { class: "label" }, "The user's message", attrDone(it) ? h("span", { class: "done-tag" }, "  ✓ checked") : null),
+    markValue(it.text, it.value),
+    it.truncated ? h("div", { class: "empty" }, "Long message: only the beginning is shown.") : null,
+    it.previous ? h("details", {}, h("summary", {}, "Show the message before it"), h("div", { class: "text" }, it.previous)) : null);
+
+  const a = it.answers;
+  const right = h("div", {},
+    h("div", { class: "card" },
+      h("h2", {}, "What the model extracted"),
+      h("table", { class: "facts" },
+        h("tr", {}, h("th", {}, "Attribute"), h("td", {}, nice(it.type))),
+        h("tr", {}, h("th", {}, "Value"), h("td", { class: "value" }, it.value)),
+        it.occupation_group ? h("tr", {}, h("th", {}, "Job group"), h("td", {}, it.occupation_group)) : null,
+        h("tr", {}, h("th", {}, "About"), h("td", {}, nice(it.about))),
+        h("tr", {}, h("th", {}, "Evidence"), h("td", {}, nice(it.evidence))),
+        h("tr", {}, h("th", {}, "Confidence"), h("td", {}, it.confidence.toFixed(2)))),
+      h("div", { class: "q" }, h("button", { class: "primary", on: { click: () => allRight(it) } }, "All correct, nothing missed"),
+        h("span", { class: "empty" }, "  or press ", h("kbd", {}, "Enter")))),
+    h("div", { class: "card" },
+      h("div", { class: "q", style: { marginTop: 0 } }, h("div", {}, "Does the message support this value?"),
+        pills(["correct", "wrong", "unsure"], a.value_ok, (v) => answer(it, "value_ok", v))),
+      h("div", { class: "q" }, h("div", {}, "Who is it really about?"),
+        pills(overview.llm_about, a.about_human, (v) => answer(it, "about_human", v), { [it.about]: "model" })),
+      h("div", { class: "q" }, h("div", {}, "Is it said outright or only implied?"),
+        pills(["stated", "inferred", "unsupported"], a.evidence_human, (v) => answer(it, "evidence_human", v), { [it.evidence]: "model" })),
+      h("div", { class: "q" }, h("div", {}, "Did the model miss anything else about the user in this message?"),
+        pills(["no", "yes"], a.missed, (v) => answer(it, "missed", v))),
+      h("div", { class: "q" }, h("div", {}, "Notes"),
+        h("textarea", { placeholder: "Optional. Don't copy the message here.", on: { change: (e) => { a.notes = e.target.value; saveAttr(it).catch(() => {}); } } }, a.notes))));
+  view.append(h("div", { class: "grid" }, left, right));
+  left.querySelector(".text").scrollTop = keep;
+
+  const labels = { value_correct: "Value correct", about_agrees: "Agree on who it's about", evidence_agrees: "Agree on stated / inferred",
+    turn_has_missed_attribute: "Messages with something missed" };
+  view.append(h("div", { class: "card" }, h("h2", {}, "So far"),
+    h("div", { class: "tally" }, A.tally.map((t) => h("span", {}, labels[t.metric] + ": ", h("b", {}, `${t.yes} of ${t.n}`)))),
+    done === A.items.length ? h("p", { class: "done-tag" }, "All checked. The summary is in results/" + overview.run + "/tables/llm_attribute_review.csv (counts under 10 are hidden there).") : null));
+}
+
+// ------------------------------------------------------------------ 2 · label messages
+const L = { name: "", items: [], i: 0, about: "user", selection: null, scores: null };
+const HUES = [212, 28, 140, 330, 52, 265, 175, 0, 95, 300, 190];
+const hue = (cat) => HUES[Math.max(0, overview.categories.indexOf(cat)) % HUES.length];
+const colour = (cat) => `hsl(${hue(cat)} 80% 55% / .38)`;
+const itemDone = (it) => it.spans.length > 0 || it.none;
+const TYPE_HELP = {
+  name: "A person's name, or a handle used as one. Not companies or products.",
+  email: "Email addresses.", phone: "Phone and fax numbers.",
+  account_id: "SSN, passport, licence, bank account, card number, crypto wallet.",
+  ip_address: "IPv4 or IPv6 addresses. Not version numbers.",
+  url: "Links to a person or their account. Not public sites.",
+  api_key_token: "API keys, tokens, private keys, passwords (the value itself).",
+  location: "Country, region, city, address, named building.",
+  date: "Dates in someone's life (birth, appointment). Not general dates.",
+  nrp: "Nationality, religion, politics, ethnicity. Not languages.",
+  organization: "Employer, school, hospital, club someone is linked to.",
+};
+const ABOUT_HELP = { user: "The person writing.", third_party: "Another real, private person.",
+  public: "A public figure, or a place or body as a topic.", fictional: "A character or invented persona." };
+
+// Offsets are stored in Unicode code points (what Python counts); the DOM counts UTF-16 units.
+const toCodePoints = (text, units) => Array.from(text.slice(0, units)).length;
+
+function saveItem(it) {
+  return api("/api/item", { name: L.name, item_id: it.item_id, spans: it.spans, none: it.none,
+    sensitive_topic: it.sensitive_topic, notes: it.notes }).then((r) => {
+      const b = overview.batches.find((x) => x.name === L.name); if (b) b.done = r.done; counts(); });
+}
+function changed(it) { renderLabel(); saveItem(it).catch(() => {}); }
+
+function spanText(it) {
+  const cps = Array.from(it.text), cuts = new Set([0, cps.length]);
+  for (const s of it.spans) { cuts.add(s.start); cuts.add(s.end); }
+  const edges = [...cuts].sort((x, y) => x - y), box = h("div", { class: "text selectable", id: "label-text" });
+  for (let k = 0; k < edges.length - 1; k++) {
+    const piece = cps.slice(edges[k], edges[k + 1]).join("");
+    const s = it.spans.find((x) => x.start <= edges[k] && x.end >= edges[k + 1]);
+    box.append(s ? h("mark", { style: { background: colour(s.pii_type) }, title: `${nice(s.pii_type)} · ${nice(s.about) || "?"}` }, piece) : piece);
+  }
+  box.addEventListener("mouseup", () => setTimeout(() => onSelect(it, box), 0));
+  return box;
+}
+
+function onSelect(it, box) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || sel.isCollapsed || !box.contains(sel.anchorNode) || !box.contains(sel.focusNode)) return hidePopover();
+  const range = sel.getRangeAt(0), before = document.createRange();
+  before.selectNodeContents(box); before.setEnd(range.startContainer, range.startOffset);
+  let from = before.toString().length, picked = range.toString();
+  const lead = picked.length - picked.trimStart().length;
+  from += lead; picked = picked.trim();
+  if (!picked) return hidePopover();
+  L.selection = { start: toCodePoints(it.text, from), end: toCodePoints(it.text, from + picked.length) };
+  const rect = range.getBoundingClientRect();
+  showPopover(it, rect);
+}
+
+function hidePopover() { $("popover").style.display = "none"; L.selection = null; }
+
+function showPopover(it, rect) {
+  const pop = $("popover");
+  const add = (cat) => {
+    if (!L.selection) return;
+    it.spans.push({ ...L.selection, pii_type: cat, about: L.about }); it.none = false;
+    it.spans.sort((x, y) => x.start - y.start || x.end - y.end);
+    window.getSelection().removeAllRanges(); hidePopover(); changed(it);
+  };
+  const draw = () => pop.replaceChildren(
+    h("div", { class: "label" }, "Who is it about?"),
+    pills(overview.about_labels, L.about, (v) => { L.about = v || L.about; draw(); }),
+    h("div", { class: "label" }, "What is it? (click to add)"),
+    h("div", { class: "pills" }, overview.categories.map((c) =>
+      h("button", { class: "pill", type: "button", title: TYPE_HELP[c] || "", style: { borderLeft: `6px solid ${colour(c)}` }, on: { click: () => add(c) } }, nice(c)))));
+  draw();
+  pop.style.display = "block";
+  const top = window.scrollY + rect.bottom + 8, left = window.scrollX + Math.min(rect.left, window.innerWidth - 360);
+  pop.style.top = top + "px"; pop.style.left = Math.max(8, left) + "px";
+}
+
+async function openBatch(name) {
+  const data = await api("/api/batch?name=" + encodeURIComponent(name));
+  L.name = name; L.items = data.items; L.scores = null;
+  const first = L.items.findIndex((x) => !itemDone(x)); L.i = first === -1 ? 0 : first;
+  renderLabel();
+}
+
+async function newBatch(n) {
+  status("Creating batch…");
+  const r = await api("/api/new-batch", { n });
+  overview = await api("/api/overview"); counts(); await openBatch(r.name);
+}
+
+function renderLabel() {
+  hidePopover();
+  const view = $("view-label"), old = $("label-text");
+  const keep = old && view.dataset.item === String(L.i) ? old.scrollTop : 0;
+  view.replaceChildren(); view.dataset.item = String(L.i);
+  const sizeInput = h("input", { type: "number", min: 1, max: 2000, value: 100, style: { width: "80px" }, "aria-label": "Number of messages" });
+  const create = h("button", { class: "plain", on: { click: (e) => { e.target.disabled = true; newBatch(Number(sizeInput.value)).catch(() => { e.target.disabled = false; }); } } }, "Create a new batch");
+  const picker = h("div", { class: "nav" },
+    overview.batches.length ? h("select", { "aria-label": "Batch", on: { change: (e) => openBatch(e.target.value) } },
+      overview.batches.map((b) => h("option", { value: b.name, selected: b.name === L.name }, `${b.name.replace(/\.csv$/, "")} (${b.done}/${b.n})`))) : null,
+    h("span", { class: "empty" }, overview.batches.length ? "or" : "No batch yet."), create, sizeInput, h("span", { class: "empty" }, "messages"));
+  view.append(picker);
+  if (!L.items.length) return;
+
+  const it = L.items[L.i], done = L.items.filter(itemDone).length;
+  const go = (k) => { L.i = Math.max(0, Math.min(L.items.length - 1, k)); renderLabel(); window.scrollTo(0, 0); };
+  const nextOpen = () => { const k = L.items.findIndex((x, j) => j > L.i && !itemDone(x)); go(k === -1 ? L.items.findIndex((x) => !itemDone(x)) : k); };
+  view.append(h("div", { class: "nav" },
+    h("button", { class: "plain", disabled: L.i === 0, on: { click: () => go(L.i - 1) } }, "← Back"),
+    h("span", { class: "where" }, `${L.i + 1} of ${L.items.length}`),
+    h("button", { class: "plain", disabled: L.i === L.items.length - 1, on: { click: () => go(L.i + 1) } }, "Next →"),
+    h("button", { class: "plain", disabled: done === L.items.length, on: { click: nextOpen } }, "Next unlabelled"),
+    h("div", { class: "bar" }, h("div", { style: { width: (100 * done / L.items.length) + "%" } })),
+    h("span", { class: "where" }, `${done} labelled`)));
+
+  const left = h("div", { class: "card" },
+    h("div", { class: "label" }, "Select text to label it", itemDone(it) ? h("span", { class: "done-tag" }, "  ✓ labelled") : null),
+    spanText(it));
+
+  const cps = Array.from(it.text);
+  const rows = it.spans.map((s, k) => h("div", { class: "span-row" },
+    h("span", { class: "swatch", style: { background: colour(s.pii_type) } }),
+    h("span", { class: "snippet", title: "" }, cps.slice(s.start, s.end).join("")),
+    h("select", { "aria-label": "Type", on: { change: (e) => { s.pii_type = e.target.value; changed(it); } } },
+      overview.categories.map((c) => h("option", { value: c, selected: c === s.pii_type }, nice(c)))),
+    h("select", { "aria-label": "About", on: { change: (e) => { s.about = e.target.value; changed(it); } } },
+      ["", ...overview.about_labels].map((c) => h("option", { value: c, selected: c === s.about }, c ? nice(c) : "about…"))),
+    h("button", { class: "plain", "aria-label": "Remove", on: { click: () => { it.spans.splice(k, 1); changed(it); } } }, "✕")));
+
+  const right = h("div", {},
+    h("div", { class: "card" },
+      h("h2", {}, "Personal information in this message"),
+      rows.length ? rows : h("p", { class: "empty" }, it.none ? "Marked as containing none." : "Nothing labelled yet. Select a name, place, email or other detail in the message."),
+      h("div", { class: "q" }, h("button", { class: it.none ? "primary" : "plain", disabled: it.spans.length > 0,
+        on: { click: () => { it.none = !it.none; saveItem(it).then(() => { if (it.none) nextOpen(); else renderLabel(); }, () => {}); } } },
+        it.none ? "✓ No personal information" : "No personal information here"),
+        h("span", { class: "empty" }, "  ", h("kbd", {}, "N")))),
+    h("div", { class: "card" },
+      h("div", { class: "q", style: { marginTop: 0 } }, h("div", {}, "Sensitive topic of the message (optional)"),
+        h("select", { on: { change: (e) => { it.sensitive_topic = e.target.value; saveItem(it).catch(() => {}); } } },
+          ["", ...overview.topics].map((t) => h("option", { value: t, selected: t === it.sensitive_topic }, t ? nice(t) : "none")))),
+      h("div", { class: "q" }, h("div", {}, "Notes"),
+        h("textarea", { placeholder: "Optional, e.g. \"possibly dummy\" or \"not read: Russian\".", on: { change: (e) => { it.notes = e.target.value; saveItem(it).catch(() => {}); } } }, it.notes))),
+    h("div", { class: "card" },
+      h("details", { style: { marginTop: 0 } }, h("summary", {}, "What counts as what"),
+        h("dl", { class: "guide" },
+          overview.categories.map((c) => [h("dt", {}, nice(c)), h("dd", {}, TYPE_HELP[c] || "")]),
+          overview.about_labels.map((c) => [h("dt", {}, "About: " + nice(c)), h("dd", {}, ABOUT_HELP[c] || "")]),
+          h("dt", {}, "Skip"), h("dd", {}, "Existing placeholders (NAME_1), obvious dummies (John Doe, example.com), variable names in code. Label the smallest span that carries the information. Full rules: docs/annotation_guide.md.")))));
+  view.append(h("div", { class: "grid" }, left, right));
+  $("label-text").scrollTop = keep;
+
+  const scoreBtn = h("button", { class: "plain", disabled: done === 0, on: { click: async (e) => {
+    e.target.disabled = true; try { L.scores = await api("/api/score", { name: L.name }); status(""); } catch (_) {} renderLabel(); } } }, "Score the detectors against my labels");
+  const scoreCard = h("div", { class: "card" }, h("h2", {}, "Results"), scoreBtn,
+    h("span", { class: "empty" }, "  Compares Presidio, the regex detectors and the model with what you labelled. Unlabelled messages are left out."));
+  if (L.scores) {
+    const fmt = (v) => v == null ? "–" : typeof v === "number" && !Number.isInteger(v) ? v.toFixed(2) : String(v);
+    scoreCard.append(h("div", { class: "scroll-x", style: { marginTop: "12px" } }, h("table", { class: "scores" },
+      h("tr", {}, L.scores.columns.map((c) => h("th", {}, c.replace(/_/g, " ")))),
+      L.scores.rows.map((r) => h("tr", {}, r.map((v) => h("td", {}, fmt(v))))))),
+      h("p", { class: "empty" }, "Saved to results/" + overview.run + "/tables/detector_validation.csv."));
+  }
+  view.append(scoreCard);
+}
+
+// ------------------------------------------------------------------ shell
+function counts() {
+  $("count-attrs").textContent = overview.attrs ? `${overview.attrs.done}/${overview.attrs.n}` : "";
+  const b = overview.batches.find((x) => x.name === L.name) || overview.batches[overview.batches.length - 1];
+  $("count-label").textContent = b ? `${b.done}/${b.n}` : "";
+}
+function show(which) {
+  tab = which; hidePopover();
+  for (const t of ["attrs", "label"]) { $("tab-" + t).setAttribute("aria-selected", String(t === which)); $("view-" + t).hidden = t !== which; }
+}
+$("tab-attrs").addEventListener("click", () => show("attrs"));
+$("tab-label").addEventListener("click", () => show("label"));
+document.addEventListener("mousedown", (e) => { if (!$("popover").contains(e.target) && !e.target.closest("#label-text")) hidePopover(); });
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /^(TEXTAREA|INPUT|SELECT|BUTTON)$/.test(e.target.tagName)) return;
+  if (e.key === "Escape") return hidePopover();
+  if (tab === "attrs" && A.items.length) {
+    if (e.key === "Enter") allRight(A.items[A.i]);
+    else if (e.key === "ArrowRight" && A.i < A.items.length - 1) { A.i++; renderAttrs(); }
+    else if (e.key === "ArrowLeft" && A.i > 0) { A.i--; renderAttrs(); }
+  } else if (tab === "label" && L.items.length) {
+    const it = L.items[L.i];
+    if (e.key === "ArrowRight" && L.i < L.items.length - 1) { L.i++; renderLabel(); }
+    else if (e.key === "ArrowLeft" && L.i > 0) { L.i--; renderLabel(); }
+    else if (e.key.toLowerCase() === "n" && !it.spans.length && !it.none) {
+      it.none = true; saveItem(it).then(() => { const k = L.items.findIndex((x, j) => j > L.i && !itemDone(x)); if (k !== -1) L.i = k; renderLabel(); }, () => {});
+    }
+  }
+});
+
+(async function start() {
+  try {
+    overview = await api("/api/overview");
+    $("run").textContent = overview.run;
+    const attrs = await api("/api/attrs");
+    A.items = attrs.items; A.tally = attrs.tally;
+    const first = A.items.findIndex((x) => !attrDone(x)); A.i = first === -1 ? 0 : first;
+    renderAttrs();
+    if (overview.batches.length) await openBatch(overview.batches[overview.batches.length - 1].name); else renderLabel();
+    counts(); status("");
+    if (location.hash === "#label") show("label");
+  } catch (e) { status("Could not load: " + e.message, true); }
+})();
+</script>
+</body>
+</html>

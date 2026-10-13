@@ -3,6 +3,18 @@
 For hand-labeling a batch written by `residpii label-export`. The labels are the gold standard that
 `residpii label-score` compares the detectors against.
 
+## The quick way: the review page
+
+```bash
+residpii review --config <the config used for the run>
+```
+
+opens a page in your browser, served from this computer only. Tab 2 creates or opens a batch: select
+text in a message, pick who it is about and what it is, and the span is saved to the batch file
+described below. Tab 1 is the sanity check of the LLM detector: a sample of its extractions, each
+shown next to the message it came from. Both write only to `restricted/labels/`. The rules below
+apply either way; the spreadsheet route still works.
+
 ## Before you start
 
 - The batch file contains raw user text. It lives in

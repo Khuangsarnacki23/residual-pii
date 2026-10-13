@@ -6,6 +6,7 @@
   residpii user-activity --config configs/user_level.yaml   # users by conversation count (metadata only)
   residpii label-export  --config configs/default.yaml --n 300      # batch of turns to annotate (restricted dir)
   residpii label-score   --config configs/default.yaml --labels <file>   # detector precision/recall vs labels
+  residpii review        --config configs/default.yaml   # local page for the manual checks and labeling
 """
 from __future__ import annotations
 
@@ -62,6 +63,13 @@ def _main(argv: list[str] | None = None) -> int:
     ls.add_argument("--second-annotator", choices=["llm"],
                     help="Also run the LLM on the labeled turns for agreement statistics")
 
+    rv = sub.add_parser("review", help="Open a local page for checking LLM extractions and labeling turns")
+    rv.add_argument("--config", required=True)
+    rv.add_argument("--datasets", nargs="*", help="Subset of dataset keys to run")
+    rv.add_argument("--n-attrs", type=int, default=20, help="LLM extractions to check")
+    rv.add_argument("--port", type=int, default=0, help="Port on 127.0.0.1 (default: any free port)")
+    rv.add_argument("--no-browser", action="store_true", help="Print the address instead of opening it")
+
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
     if getattr(args, "datasets", None):
@@ -99,6 +107,11 @@ def _main(argv: list[str] | None = None) -> int:
     if args.cmd == "label-score":
         out = Pipeline(cfg).label_score(args.labels, args.second_annotator)
         print(out.to_string(index=False))
+        return 0
+
+    if args.cmd == "review":
+        from .review import serve
+        serve(Pipeline(cfg), args.port, args.n_attrs, open_browser=not args.no_browser)
         return 0
     return 1
 
