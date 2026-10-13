@@ -274,7 +274,9 @@ def test_llm_stage_outputs(llm_run):
     prof = pd.read_parquet(pipe.paths.restricted / "profiles_wildchat.parquet")
     assert prof["user"].nunique() == 13 and set(prof["variant"]) == {"stated_only", "stated_plus_inferred"}
     # Coarsened to SOC codes (a nurse/developer tie across conversations is `ambiguous`), never the raw title.
-    assert (prof["occupation_group"].dropna().isin(["29", "29-1", "15", "15-1", "ambiguous"])).all()
+    coarsened = prof[prof["level"] != "exact"]                      # the exact level keeps the job as written
+    assert (coarsened["occupation_group"].dropna().isin(["29", "29-1", "15", "15-1", "ambiguous"])).all()
+    assert prof.loc[prof["level"] == "exact", "occupation_group"].isin(["software developer"]).any()
     assert prof.loc[prof["variant"] == "stated_only", "gender"].isna().all()       # gender was only inferred
     for root in (pipe.paths.results, pipe.paths.work):
         assert not [f.name for f in root.rglob("*") if "profiles" in f.name or "llm_attrs" in f.name

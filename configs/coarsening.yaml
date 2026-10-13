@@ -1,6 +1,8 @@
 # Deterministic coarsening maps for per-user profiles (src/residpii/profiles.py).
 # Raw LLM values are matched after normalisation (lower-case, punctuation removed). Anything that
 # does not match becomes `unknown`, so a free-text value can never make a user look unique.
+# This applies to the `fine` and `coarse` levels. The `exact` level keeps values as written and uses
+# these tables only to merge spellings (USA / United States) and to add a known city's region.
 # These tables are deliberately small and English/US-centred; see docs/limitations.md.
 
 age_band_years: {fine: 10, coarse: 20}

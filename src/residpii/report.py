@@ -101,7 +101,7 @@ def figures(prev: pd.DataFrame, by_task: pd.DataFrame, taxonomy: dict, fig_dir: 
 
 VARIANT_COLORS = {"stated_only": "#2a78d6", "stated_plus_inferred": "#eb6834"}   # palette slots 1-2
 PROFILE_VARIANT_LABELS = {"stated_only": "Stated only", "stated_plus_inferred": "Stated + inferred"}
-LEVEL_LABELS = {"fine": "Fine coarsening", "coarse": "Coarse coarsening"}
+LEVEL_LABELS = {"coarse": "Coarse (6 attributes)", "fine": "Fine (6 attributes)", "exact": "As written (12 attributes)"}
 
 
 def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.DataFrame | None = None) -> list[str]:
@@ -233,7 +233,10 @@ group, age band, gender, education level and country. Values the tables do not c
 `unknown`. We used two coarsening levels (fine: state or region, 10-year age band, SOC minor group
 where available; coarse: census region or country, 20-year age band, SOC major group) and two
 variants (stated attributes only; stated plus inferred). When a user's conversations disagreed we
-took the majority value and treated ties as ambiguous.
+took the majority value and treated ties as ambiguous. A third level, `exact`, keeps the values as
+written (normalised text, no lookup tables) and adds city, employer type, school, relationship
+status, nationality and native language. The coarsened levels understate what users revealed; the
+exact level overstates uniqueness where two users worded the same fact differently.
 
 For every combination of one to {max_combo} dimensions we computed the equivalence-class size k
 among users with a usable value for each dimension in the combination, and report the share of

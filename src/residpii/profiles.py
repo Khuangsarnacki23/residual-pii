@@ -4,6 +4,12 @@ A profile is one row per (user, variant, coarsening level) with at most one valu
 dimension in DIMENSIONS. Profiles are personal data and are stored only in the restricted
 directory; `profile_summary` is the aggregate view that may be published.
 
+The `fine` and `coarse` levels keep only values the lookup tables recognise, on six dimensions, so
+wording can never make a user look unique: they understate what was revealed. The `exact` level
+keeps every attribute type the LLM extracts about the user, as written (normalised text, no
+generalisation): it overstates uniqueness wherever two users worded the same fact differently.
+The truth lies between them.
+
 Nothing here looks anything up outside the tables in configs/coarsening.yaml, and users are grouped
 only by the dataset's own user proxy (`user_key`, a keyed hash).
 """
@@ -17,8 +23,22 @@ import yaml
 from .llm import OCCUPATION_GROUPS, unit_keys
 from .sampling import activity_bucket
 
-DIMENSIONS = ("region", "occupation_group", "age_band", "gender", "education_level", "country")
-LEVELS = ("fine", "coarse")
+BASE_DIMENSIONS = ("region", "occupation_group", "age_band", "gender", "education_level", "country")
+# Used at the exact level only: there is no lookup table to generalise them with.
+EXACT_ONLY = ("city", "employer_type", "school", "relationship_status", "nationality", "language_native")
+DIMENSIONS = (*BASE_DIMENSIONS, *EXACT_ONLY)
+LEVELS = ("fine", "coarse", "exact")
+# LLM attribute type -> dimension at the exact level (age and age_range are handled separately;
+# the free-text type `other` is never used).
+EXACT_DIMENSION = {"city": "city", "state_or_region": "region", "country": "country",
+                   "occupation": "occupation_group", "employer_type": "employer_type", "gender": "gender",
+                   "school": "school", "education_level": "education_level",
+                   "relationship_status": "relationship_status", "nationality": "nationality",
+                   "language_native": "language_native"}
+
+
+def level_dimensions(level: str) -> tuple[str, ...]:
+    return DIMENSIONS if level == "exact" else BASE_DIMENSIONS
 VARIANTS = ("stated_only", "stated_plus_inferred")
 UNKNOWN, AMBIGUOUS = "unknown", "ambiguous"
 NOT_KNOWN = (UNKNOWN, AMBIGUOUS)    # a dimension with one of these is treated as not available
@@ -111,9 +131,29 @@ class Coarsener:
         # Fine level uses the SOC minor group when one is known, else falls back to the major group.
         return minor if level == "fine" and minor else group
 
+    def _exact(self, attr_type: str, value: str) -> list[tuple[str, str]]:
+        """The value as written. The tables are used only to merge spellings of the same thing
+        (`USA` and `United States`) and to add the region and country a known city implies."""
+        v = normalize(value)
+        if not v:
+            return []
+        if attr_type in ("age", "age_range"):
+            nums = re.findall(r"\d{1,3}", v)
+            return [("age_band", nums[0] if attr_type == "age" and len(nums) == 1 else v)]
+        if attr_type not in EXACT_DIMENSION:
+            return []
+        if attr_type == "city":
+            region, country = self.city.get(v, (None, None))
+            implied = [("region", normalize(region)), ("country", country)] if region else []
+            return [("city", v), *implied]
+        v = {"country": self.country, "state_or_region": self.state, "gender": self.gender}.get(attr_type, {}).get(v, v)
+        return [(EXACT_DIMENSION[attr_type], normalize(v))]
+
     # -- dispatch
     def candidates(self, attr_type: str, value: str, level: str, occupation_group: str = "",
                    occupation_minor_group: str = "") -> list[tuple[str, str]]:
+        if level == "exact":
+            return self._exact(attr_type, value)
         v = normalize(value)
         if attr_type == "city":
             region, country = self.city.get(v, (None, None))
@@ -213,13 +253,13 @@ def profile_summary(profiles: pd.DataFrame, min_cell: int = 10) -> pd.DataFrame:
     conflicting values, and how many ended up ambiguous or unmapped. Counts under min_cell are blanked."""
     rows = []
     for (ds, variant, level), g in profiles.groupby(["dataset", "variant", "level"]):
-        known = known_values(g)
-        for dim in (*DIMENSIONS, "any"):
+        known, dims = known_values(g), list(level_dimensions(level))
+        for dim in (*dims, "any"):
             if dim == "any":
                 counts = {"n_with_value": known.notna().any(axis=1).sum(),
-                          "n_conflict": g[[f"conflict_{d}" for d in DIMENSIONS]].any(axis=1).sum(),
-                          "n_ambiguous": g[list(DIMENSIONS)].eq(AMBIGUOUS).any(axis=1).sum(),
-                          "n_unmapped": g[list(DIMENSIONS)].eq(UNKNOWN).any(axis=1).sum()}
+                          "n_conflict": g[[f"conflict_{d}" for d in dims]].any(axis=1).sum(),
+                          "n_ambiguous": g[dims].eq(AMBIGUOUS).any(axis=1).sum(),
+                          "n_unmapped": g[dims].eq(UNKNOWN).any(axis=1).sum()}
             else:
                 counts = {"n_with_value": known[dim].notna().sum(), "n_conflict": g[f"conflict_{dim}"].sum(),
                           "n_ambiguous": (g[dim] == AMBIGUOUS).sum(), "n_unmapped": (g[dim] == UNKNOWN).sum()}

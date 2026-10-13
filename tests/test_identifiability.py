@@ -14,7 +14,7 @@ from residpii.safety import assert_safe_table
 from residpii.config import REPO_ROOT, load_config
 from residpii.pipeline import Pipeline
 from residpii.profiles import (AMBIGUOUS, DIMENSIONS, UNKNOWN, build_profiles, load_coarsener, profile_summary,
-                               resolve)
+                               resolve, level_dimensions)
 
 
 def _cfg() -> dict:
@@ -281,7 +281,28 @@ def test_coarsening_is_deterministic_and_closed():
     assert c1.candidates("occupation", "software engineer", "coarse") == [("occupation_group", "15")]
     assert c1.candidates("occupation", "anything", "coarse", "29", "29-1") == [("occupation_group", "29")]
     assert c1.candidates("country", "Germany", "fine") == [("country", "germany")]
-    assert c1.candidates("nationality", "German", "fine") == []                   # not a profile dimension
+    assert c1.candidates("nationality", "German", "fine") == []                   # not a coarsened dimension
+
+
+def test_exact_level_keeps_values_as_written():
+    c = load_coarsener(_cfg())
+    # No generalisation: the job title, the age and the school name stay as they were said.
+    assert c.candidates("occupation", "Paediatric Nurse", "exact", "29", "29-1") == [("occupation_group", "paediatric nurse")]
+    assert c.candidates("age", "27", "exact") == [("age_band", "27")]
+    assert c.candidates("age_range", "mid 30s", "exact") == [("age_band", "mid 30s")]
+    assert c.candidates("school", "Ohio State University", "exact") == [("school", "ohio state university")]
+    # Attribute types the coarsened levels drop are used here.
+    assert c.candidates("nationality", "German", "exact") == [("nationality", "german")]
+    assert c.candidates("language_native", "Tagalog", "exact") == [("language_native", "tagalog")]
+    assert c.candidates("employer_type", "public hospital", "exact") == [("employer_type", "public hospital")]
+    assert c.candidates("relationship_status", "Married", "exact") == [("relationship_status", "married")]
+    # Spellings of one thing are merged, and a known city brings its region and country.
+    assert c.candidates("country", "U.S.", "exact") == c.candidates("country", "United States", "exact")
+    assert c.candidates("state_or_region", "CA", "exact") == [("region", "california")]
+    assert dict(c.candidates("city", "NYC", "exact")) == {"city": "nyc", "region": "new york", "country": "united states"}
+    assert c.candidates("city", "Smallville", "exact") == [("city", "smallville")]   # kept, unlike the coarsened levels
+    assert c.candidates("other", "owns a boat", "exact") == [] and c.candidates("city", " ", "exact") == []
+    assert set(level_dimensions("exact")) > set(level_dimensions("fine")) == set(level_dimensions("coarse"))
 
 
 def test_resolve_majority_and_ties():
@@ -315,7 +336,7 @@ def _profile_inputs():
 def test_profiles_conflicts_and_variants():
     attrs, tlog, sample = _profile_inputs()
     prof = build_profiles(attrs, tlog, sample, load_coarsener(_cfg()), min_confidence=0.6)
-    assert len(prof) == 3 * 2 * 2                                    # users x variants x levels
+    assert len(prof) == 3 * 2 * 3                                    # users x variants x levels
     p = prof.set_index(["user", "variant", "level"])
     # Majority vote across conversations, with the conflict recorded.
     assert p.loc[("u1", "stated_only", "fine"), "region"] == "texas"

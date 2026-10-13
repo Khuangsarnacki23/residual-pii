@@ -112,6 +112,12 @@ figures are not separated from private individuals.
   which says the model fits there, not that it extrapolates. Its bootstrap interval is skewed
   upward, because a resample holds fewer distinct users than the sample. "Population" means users
   of this dataset with enough conversations to be sampled, not the public.
+- **The three levels bracket the answer.** `coarse` and `fine` keep six attributes and only values
+  the lookup tables recognise, so they understate what users revealed. `exact` keeps twelve
+  attribute types as written. It overstates uniqueness wherever two users described the same fact
+  in different words ("software developer" and "software engineer" count as different), and a user
+  whose own conversations word a fact two ways is treated as ambiguous on it. Report the range, and
+  do not quote the exact level alone.
 - **Unique is not identified.** k = 1 means no other sampled user shares the combination. Turning
   that into an identity needs outside data, which we never use.
 - **Bootstrap intervals hold class sizes fixed** and resample users, so they show sampling noise in

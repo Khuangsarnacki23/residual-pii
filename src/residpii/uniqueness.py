@@ -19,14 +19,14 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-from .profiles import DIMENSIONS, known_values
+from .profiles import DIMENSIONS, known_values, level_dimensions
 from .sampling import ACTIVITY_LABELS
 
 GROUP = ["dataset", "variant", "level"]
 
 
-def combos(max_size: int = 4) -> list[tuple[str, ...]]:
-    return [c for r in range(1, max_size + 1) for c in combinations(DIMENSIONS, r)]
+def combos(max_size: int = 4, dims: tuple[str, ...] = DIMENSIONS) -> list[tuple[str, ...]]:
+    return [c for r in range(1, max_size + 1) for c in combinations(dims, r)]
 
 
 def class_sizes(known: pd.DataFrame, combo: tuple[str, ...]) -> np.ndarray:
@@ -73,10 +73,10 @@ def analyze(profiles: pd.DataFrame, ucfg: dict, acfg: dict, seed: int,
             min_cell: int = 10) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Returns (by_combination, by_activity, summary); all three are aggregate and suppressed."""
     max_size = int(ucfg.get("max_combination_size", 4))
-    all_combos = combos(max_size)
     reps, level_ci = int(acfg["bootstrap_reps"]), float(acfg["ci_level"])
     by_combo, by_act, summary = [], [], []
     for (ds, variant, level), g in profiles.groupby(GROUP):
+        all_combos = combos(max_size, level_dimensions(level))
         rng = np.random.default_rng(seed)
         g = g.reset_index(drop=True)
         n = len(g)
@@ -158,14 +158,17 @@ def analyze(profiles: pd.DataFrame, ucfg: dict, acfg: dict, seed: int,
 
 # ---------------------------------------------------------------- population estimate
 
-PLACE = ("region", "country")     # nested (a region implies its country), so modelled as one factor
+# Dimensions that largely determine each other (a region implies its country, a school an education
+# level) are modelled as one joint factor; treating them as independent would count the same fact twice.
+JOINT = (("region", "country", "city", "nationality", "language_native"),
+         ("occupation_group", "employer_type"), ("education_level", "school"))
 POPULATION_COLUMNS = [*GROUP, "subset", "n_qi", "sample_users", "target_users", "share_unique_model",
                       "ci_low", "ci_high", "share_unique_observed"]
 
 
 def _factors(combo: tuple[str, ...]) -> list[tuple[str, ...]]:
-    place = tuple(d for d in combo if d in PLACE)
-    return ([place] if place else []) + [(d,) for d in combo if d not in PLACE]
+    joint = [tuple(d for d in combo if d in group) for group in JOINT]
+    return [j for j in joint if j] + [(d,) for d in combo if not any(d in group for group in JOINT)]
 
 
 def _cell_codes(known: pd.DataFrame, dims: tuple[str, ...]) -> np.ndarray:
@@ -211,9 +214,8 @@ def population_estimate(profiles: pd.DataFrame, summary: pd.DataFrame, populatio
     """Modelled share of users unique among all eligible users of a dataset (`population[dataset]`),
     and, as a check on the model, the share it predicts at the sample sizes where uniqueness was
     observed. Follows the logic of Rocher et al. (2019) with a simpler model: dimensions are
-    independent of each other, except region and country, which are modelled jointly."""
+    independent of each other, except the groups in JOINT, which are modelled jointly."""
     max_size = int(ucfg.get("max_combination_size", 4))
-    all_combos = combos(max_size)
     prior = float(ucfg.get("population_prior", 0.5))
     reps, a = int(ucfg.get("population_bootstrap_reps", 200)), (1 - float(acfg["ci_level"])) / 2
     rows = []
@@ -222,6 +224,7 @@ def population_estimate(profiles: pd.DataFrame, summary: pd.DataFrame, populatio
         if n < min_cell:
             continue
         rng = np.random.default_rng(seed)
+        all_combos = combos(max_size, level_dimensions(level))
         known = known_values(g.reset_index(drop=True))
         codes = {f: _cell_codes(known, f) for c in all_combos for f in _factors(c)}
         sizes = sorted({int(x) for x in ucfg.get("sample_sizes") or [] if min_cell <= x < n} | {n})
