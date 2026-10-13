@@ -4,6 +4,7 @@ A fake backend returns canned JSON, so the parse -> store -> aggregate path runs
 "personal" values are fabricated.
 """
 import json
+from math import comb
 
 import numpy as np
 import pandas as pd
@@ -14,7 +15,7 @@ from residpii.safety import assert_safe_table
 from residpii.config import REPO_ROOT, load_config
 from residpii.pipeline import Pipeline
 from residpii.profiles import (AMBIGUOUS, DIMENSIONS, UNKNOWN, build_profiles, load_coarsener, profile_summary,
-                               resolve, level_dimensions)
+                               resolve)
 
 
 def _cfg() -> dict:
@@ -269,40 +270,31 @@ def test_coarsening_is_deterministic_and_closed():
              ("age", "27"), ("age_range", "mid 30s"), ("gender", "Woman"), ("school", "Ohio State University"),
              ("education_level", "PhD student"), ("occupation", "software engineer"), ("occupation", "wizard")]
     for typ, val in cases:
-        for level in ("fine", "coarse"):
-            assert c1.candidates(typ, val, level) == c2.candidates(typ, val, level) == c1.candidates(typ, val, level)
-    assert dict(c1.candidates("city", "NYC", "fine")) == {"country": "united states", "region": "new york"}
-    assert dict(c1.candidates("city", "NYC", "coarse")) == {"country": "united states", "region": "us_northeast"}
-    assert c1.candidates("city", "Smallville", "fine") == [("region", UNKNOWN)]   # unmatched -> unknown
-    assert c1.candidates("age", "27", "fine") == [("age_band", "20-29")]
-    assert c1.candidates("age", "27", "coarse") == [("age_band", "20-39")]
-    assert c1.candidates("school", "Ohio State University", "coarse") == [("education_level", "college")]
-    assert c1.candidates("occupation", "software engineer", "fine") == [("occupation_group", "15-1")]
-    assert c1.candidates("occupation", "software engineer", "coarse") == [("occupation_group", "15")]
-    assert c1.candidates("occupation", "anything", "coarse", "29", "29-1") == [("occupation_group", "29")]
-    assert c1.candidates("country", "Germany", "fine") == [("country", "germany")]
-    assert c1.candidates("nationality", "German", "fine") == []                   # not a coarsened dimension
+        assert c1.candidates(typ, val) == c2.candidates(typ, val) == c1.candidates(typ, val)
+    assert dict(c1.candidates("city", "NYC")) == {"country": "united states", "region": "new york"}
+    assert c1.candidates("city", "Smallville") == [("region", UNKNOWN)]           # unmatched -> unknown
+    assert c1.candidates("state_or_region", "CA") == c1.candidates("state_or_region", "California")
+    assert c1.candidates("country", "U.S.") == c1.candidates("country", "United States")
+    assert c1.candidates("age", "27") == [("age_band", "20-29")]
+    assert c1.candidates("occupation", "software engineer") == [("occupation_group", "15-1")]
+    assert c1.candidates("occupation", "anything", "29", "29-1") == [("occupation_group", "29-1")]
+    assert c1.candidates("occupation", "anything", "29") == [("occupation_group", "29")]
+    assert c1.candidates("occupation", "wizard") == [("occupation_group", UNKNOWN)]
+    assert c1.candidates("country", "Germany") == [("country", "germany")]
 
 
-def test_exact_level_keeps_values_as_written():
+def test_attributes_without_a_table_are_kept_as_stated():
     c = load_coarsener(_cfg())
-    # No generalisation: the job title, the age and the school name stay as they were said.
-    assert c.candidates("occupation", "Paediatric Nurse", "exact", "29", "29-1") == [("occupation_group", "paediatric nurse")]
-    assert c.candidates("age", "27", "exact") == [("age_band", "27")]
-    assert c.candidates("age_range", "mid 30s", "exact") == [("age_band", "mid 30s")]
-    assert c.candidates("school", "Ohio State University", "exact") == [("school", "ohio state university")]
-    # Attribute types the coarsened levels drop are used here.
-    assert c.candidates("nationality", "German", "exact") == [("nationality", "german")]
-    assert c.candidates("language_native", "Tagalog", "exact") == [("language_native", "tagalog")]
-    assert c.candidates("employer_type", "public hospital", "exact") == [("employer_type", "public hospital")]
-    assert c.candidates("relationship_status", "Married", "exact") == [("relationship_status", "married")]
-    # Spellings of one thing are merged, and a known city brings its region and country.
-    assert c.candidates("country", "U.S.", "exact") == c.candidates("country", "United States", "exact")
-    assert c.candidates("state_or_region", "CA", "exact") == [("region", "california")]
-    assert dict(c.candidates("city", "NYC", "exact")) == {"city": "nyc", "region": "new york", "country": "united states"}
-    assert c.candidates("city", "Smallville", "exact") == [("city", "smallville")]   # kept, unlike the coarsened levels
-    assert c.candidates("other", "owns a boat", "exact") == [] and c.candidates("city", " ", "exact") == []
-    assert set(level_dimensions("exact")) > set(level_dimensions("fine")) == set(level_dimensions("coarse"))
+    assert c.candidates("nationality", "German") == [("nationality", "german")]
+    assert c.candidates("language_native", " Tagalog. ") == [("language_native", "tagalog")]
+    assert c.candidates("employer_type", "Public hospital") == [("employer_type", "public hospital")]
+    assert c.candidates("relationship_status", "Married") == [("relationship_status", "married")]
+    # A school keeps its name and also gives the level of study it implies.
+    assert dict(c.candidates("school", "Ohio State University")) == {"school": "ohio state university",
+                                                                     "education_level": "some_college"}
+    assert c.candidates("other", "owns a boat") == [] and c.candidates("nationality", " ") == []
+    assert set(DIMENSIONS) == {"region", "country", "occupation_group", "age_band", "gender", "education_level",
+                               "employer_type", "school", "relationship_status", "nationality", "language_native"}
 
 
 def test_resolve_majority_and_ties():
@@ -336,28 +328,27 @@ def _profile_inputs():
 def test_profiles_conflicts_and_variants():
     attrs, tlog, sample = _profile_inputs()
     prof = build_profiles(attrs, tlog, sample, load_coarsener(_cfg()), min_confidence=0.6)
-    assert len(prof) == 3 * 2 * 3                                    # users x variants x levels
+    assert len(prof) == 3 * 2 and set(prof["level"]) == {"generalized"}   # users x variants, one level
     p = prof.set_index(["user", "variant", "level"])
     # Majority vote across conversations, with the conflict recorded.
-    assert p.loc[("u1", "stated_only", "fine"), "region"] == "texas"
-    assert p.loc[("u1", "stated_only", "fine"), "conflict_region"]
-    assert p.loc[("u1", "stated_only", "coarse"), "region"] == "us_south"
-    assert p.loc[("u1", "stated_only", "fine"), "country"] == "united states"
-    assert not p.loc[("u1", "stated_only", "fine"), "conflict_country"]
+    assert p.loc[("u1", "stated_only", "generalized"), "region"] == "texas"
+    assert p.loc[("u1", "stated_only", "generalized"), "conflict_region"]
+    assert p.loc[("u1", "stated_only", "generalized"), "country"] == "united states"
+    assert not p.loc[("u1", "stated_only", "generalized"), "conflict_country"]
     # Inferred attributes are left out of stated_only and present in stated_plus_inferred.
-    assert pd.isna(p.loc[("u1", "stated_only", "fine"), "age_band"])
-    assert p.loc[("u1", "stated_plus_inferred", "fine"), "age_band"] == "20-29"
+    assert pd.isna(p.loc[("u1", "stated_only", "generalized"), "age_band"])
+    assert p.loc[("u1", "stated_plus_inferred", "generalized"), "age_band"] == "20-29"
     # A tie is ambiguous.
-    assert p.loc[("u2", "stated_only", "fine"), "gender"] == AMBIGUOUS
+    assert p.loc[("u2", "stated_only", "generalized"), "gender"] == AMBIGUOUS
     # Low-confidence and third-party attributes never reach a profile, but the user is still counted.
-    assert p.loc[("u3", "stated_plus_inferred", "fine"), list(DIMENSIONS)].isna().all()
-    assert p.loc[("u1", "stated_only", "fine"), "activity_bucket"] == "3"
+    assert p.loc[("u3", "stated_plus_inferred", "generalized"), list(DIMENSIONS)].isna().all()
+    assert p.loc[("u1", "stated_only", "generalized"), "activity_bucket"] == "3"
 
     summ = profile_summary(prof, min_cell=1).set_index(["variant", "level", "attribute"])
-    assert summ.loc[("stated_only", "fine", "region"), "n_conflict"] == 1
-    assert summ.loc[("stated_only", "fine", "gender"), "n_ambiguous"] == 1
-    assert summ.loc[("stated_only", "fine", "gender"), "n_with_value"] == 0
-    assert summ.loc[("stated_only", "fine", "any"), "share_conflict"] == pytest.approx(2 / 3)
+    assert summ.loc[("stated_only", "generalized", "region"), "n_conflict"] == 1
+    assert summ.loc[("stated_only", "generalized", "gender"), "n_ambiguous"] == 1
+    assert summ.loc[("stated_only", "generalized", "gender"), "n_with_value"] == 0
+    assert summ.loc[("stated_only", "generalized", "any"), "share_conflict"] == pytest.approx(2 / 3)
     # With the real threshold every cell here is a small cell.
     assert profile_summary(prof, min_cell=10)["suppressed"].all()
 
@@ -394,7 +385,7 @@ def test_uniqueness_known_class_sizes():
     assert rg["share_k_lt5"] == pytest.approx(8 / 19) and rg["median_k"] == 11
     assert rg["share_k1_ci_low"] <= rg["share_k1"] <= rg["share_k1_ci_high"]
     assert c.loc["age_band", "suppressed"]                   # `unknown` is not a value: nobody has age_band
-    assert len(by_combo) == 6 + 15 + 20 + 15
+    assert len(by_combo) == sum(comb(len(DIMENSIONS), r) for r in range(1, 5))
 
     s = summary[summary["ci_kind"] == "bootstrap_users"].set_index("n_qi")
     assert s.loc[1, "share_unique"] == 0 and s.loc[2, "share_unique"] == pytest.approx(1 / 20)

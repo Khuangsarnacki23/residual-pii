@@ -1,14 +1,14 @@
 """Per-user quasi-identifier profiles from LLM attributes, coarsened with fixed lookup tables.
 
-A profile is one row per (user, variant, coarsening level) with at most one value for each
-dimension in DIMENSIONS. Profiles are personal data and are stored only in the restricted
-directory; `profile_summary` is the aggregate view that may be published.
+A profile is one row per (user, variant) with at most one value for each dimension in DIMENSIONS.
+Profiles are personal data and are stored only in the restricted directory; `profile_summary` is
+the aggregate view that may be published.
 
-The `fine` and `coarse` levels keep only values the lookup tables recognise, on six dimensions, so
-wording can never make a user look unique: they understate what was revealed. The `exact` level
-keeps every attribute type the LLM extracts about the user, as written (normalised text, no
-generalisation): it overstates uniqueness wherever two users worded the same fact differently.
-The truth lies between them.
+Six dimensions are generalised with lookup tables, so that two users who word the same fact
+differently still match: place (state or region, country), occupation (SOC group), age (10-year
+band), gender and education level. A value the tables do not recognise is `unknown`. Five more have
+no table and are kept as stated (normalised text): employer type, school, relationship status,
+nationality and native language. The free-text type `other` is never used.
 
 Nothing here looks anything up outside the tables in configs/coarsening.yaml, and users are grouped
 only by the dataset's own user proxy (`user_key`, a keyed hash).
@@ -23,22 +23,13 @@ import yaml
 from .llm import OCCUPATION_GROUPS, unit_keys
 from .sampling import activity_bucket
 
-BASE_DIMENSIONS = ("region", "occupation_group", "age_band", "gender", "education_level", "country")
-# Used at the exact level only: there is no lookup table to generalise them with.
-EXACT_ONLY = ("city", "employer_type", "school", "relationship_status", "nationality", "language_native")
-DIMENSIONS = (*BASE_DIMENSIONS, *EXACT_ONLY)
-LEVELS = ("fine", "coarse", "exact")
-# LLM attribute type -> dimension at the exact level (age and age_range are handled separately;
-# the free-text type `other` is never used).
-EXACT_DIMENSION = {"city": "city", "state_or_region": "region", "country": "country",
-                   "occupation": "occupation_group", "employer_type": "employer_type", "gender": "gender",
-                   "school": "school", "education_level": "education_level",
-                   "relationship_status": "relationship_status", "nationality": "nationality",
-                   "language_native": "language_native"}
-
-
-def level_dimensions(level: str) -> tuple[str, ...]:
-    return DIMENSIONS if level == "exact" else BASE_DIMENSIONS
+TABLE_DIMENSIONS = ("region", "occupation_group", "age_band", "gender", "education_level", "country")
+# No lookup table exists for these, so the stated value is kept. LLM attribute type == dimension name.
+AS_STATED = ("employer_type", "school", "relationship_status", "nationality", "language_native")
+DIMENSIONS = (*TABLE_DIMENSIONS, *AS_STATED)
+# Kept as a column so tables keep their shape; there is one level.
+LEVEL = "generalized"
+LEVELS = (LEVEL,)
 VARIANTS = ("stated_only", "stated_plus_inferred")
 UNKNOWN, AMBIGUOUS = "unknown", "ambiguous"
 NOT_KNOWN = (UNKNOWN, AMBIGUOUS)    # a dimension with one of these is treated as not available
@@ -51,11 +42,11 @@ def normalize(value: str) -> str:
 
 
 class Coarsener:
-    """Maps one raw attribute onto (dimension, value) pairs at a coarsening level. Deterministic:
+    """Maps one raw attribute onto (dimension, value) pairs. Deterministic:
     the same input and tables always give the same output."""
 
     def __init__(self, spec: dict):
-        self.band = spec["age_band_years"]
+        self.band = int(spec["age_band_years"])
         self.top = int(spec["age_top_code"])
         self.state, self.census = {}, {}                 # alias -> state name; state name -> census region
         for region, pairs in spec["us_census_regions"].items():
@@ -78,7 +69,6 @@ class Coarsener:
         self.gender = {normalize(a): g for g, aliases in spec["gender"].items() for a in aliases}
         self.education = [(lvl, re.compile(p, re.I)) for lvl, p in spec["education_level"]]
         self.school = [(lvl, re.compile(p, re.I)) for lvl, p in spec["school"]]
-        self.education_coarse = spec["education_coarse"]
         self.occupation = [(re.compile(row[0], re.I), str(row[1]), row[2] if len(row) > 2 else "")
                            for row in spec["occupation_keywords"]]
         bad = {g for _, g, _ in self.occupation} - set(OCCUPATION_GROUPS)
@@ -86,18 +76,10 @@ class Coarsener:
             raise ValueError(f"coarsening.yaml: unknown occupation groups {sorted(bad)}")
 
     # -- single dimensions
-    def _place(self, region: str | None, country: str | None, level: str) -> list[tuple[str, str]]:
-        out = [("country", country)] if country else []
-        if level == "fine":
-            if region:
-                out.append(("region", region))
-        elif region and country == "united states":
-            out.append(("region", self.census[region]))
-        elif country and country != "united states":
-            out.append(("region", country))              # coarse level outside the US: the country
-        return out
+    def _place(self, region: str | None, country: str | None) -> list[tuple[str, str]]:
+        return [("country", country)] * bool(country) + [("region", region)] * bool(region)
 
-    def _age(self, value: str, level: str) -> str:
+    def _age(self, value: str) -> str:
         v = normalize(value)
         nums = [int(n) for n in re.findall(r"\d{1,3}", v)]
         if re.fullmatch(r"\d0s", v) or re.search(r"\b(?:early|mid|late) \d0s\b", v):
@@ -114,70 +96,49 @@ class Coarsener:
             return UNKNOWN
         if age >= self.top:
             return f"{self.top}+"
-        width = int(self.band[level])
-        lo = int(age // width * width)
-        return f"{lo}-{min(lo + width, self.top) - 1}"
+        lo = int(age // self.band * self.band)
+        return f"{lo}-{min(lo + self.band, self.top) - 1}"
 
     def _first(self, rules: list, value: str) -> str:
         v = normalize(value)
         return next((lvl for lvl, pat in rules if pat.search(v)), UNKNOWN)
 
-    def _occupation(self, value: str, group: str, minor: str, level: str) -> str:
+    def _occupation(self, value: str, group: str, minor: str) -> str:
         if group not in OCCUPATION_GROUPS:
             v = normalize(value)
             group, minor = next(((g, m) for pat, g, m in self.occupation if pat.search(v)), ("", ""))
         if not group:
             return UNKNOWN
-        # Fine level uses the SOC minor group when one is known, else falls back to the major group.
-        return minor if level == "fine" and minor else group
-
-    def _exact(self, attr_type: str, value: str) -> list[tuple[str, str]]:
-        """The value as written. The tables are used only to merge spellings of the same thing
-        (`USA` and `United States`) and to add the region and country a known city implies."""
-        v = normalize(value)
-        if not v:
-            return []
-        if attr_type in ("age", "age_range"):
-            nums = re.findall(r"\d{1,3}", v)
-            return [("age_band", nums[0] if attr_type == "age" and len(nums) == 1 else v)]
-        if attr_type not in EXACT_DIMENSION:
-            return []
-        if attr_type == "city":
-            region, country = self.city.get(v, (None, None))
-            implied = [("region", normalize(region)), ("country", country)] if region else []
-            return [("city", v), *implied]
-        v = {"country": self.country, "state_or_region": self.state, "gender": self.gender}.get(attr_type, {}).get(v, v)
-        return [(EXACT_DIMENSION[attr_type], normalize(v))]
+        # The SOC minor group when one is known, else the major group.
+        return minor or group
 
     # -- dispatch
-    def candidates(self, attr_type: str, value: str, level: str, occupation_group: str = "",
+    def candidates(self, attr_type: str, value: str, occupation_group: str = "",
                    occupation_minor_group: str = "") -> list[tuple[str, str]]:
-        if level == "exact":
-            return self._exact(attr_type, value)
         v = normalize(value)
         if attr_type == "city":
             region, country = self.city.get(v, (None, None))
-            return self._place(region, country, level) or [("region", UNKNOWN)]
+            return self._place(region, country) or [("region", UNKNOWN)]
         if attr_type == "state_or_region":
             if v in self.state:
-                return self._place(self.state[v], "united states", level)
+                return self._place(self.state[v], "united states")
             region, country = self.region.get(v, (None, None))
-            return self._place(region, country, level) or [("region", UNKNOWN)]
+            return self._place(region, country) or [("region", UNKNOWN)]
         if attr_type == "country":
-            country = self.country.get(v)
-            return self._place(None, country, level) or [("country", UNKNOWN)]
+            return self._place(None, self.country.get(v)) or [("country", UNKNOWN)]
         if attr_type in ("age", "age_range"):
-            return [("age_band", self._age(value, level))]
+            return [("age_band", self._age(value))]
         if attr_type == "gender":
             return [("gender", self.gender.get(v, UNKNOWN))]
-        if attr_type in ("education_level", "school"):
-            lvl = self._first(self.education if attr_type == "education_level" else self.school, value)
-            if lvl != UNKNOWN and level == "coarse":
-                lvl = self.education_coarse[lvl]
-            return [("education_level", lvl)]
+        if attr_type == "education_level":
+            return [("education_level", self._first(self.education, value))]
+        if attr_type == "school":
+            # The school is kept as stated; the level of study it implies goes to education_level.
+            level = self._first(self.school, value)
+            return [("school", v)] * bool(v) + [("education_level", level)] * (level != UNKNOWN)
         if attr_type == "occupation":
-            return [("occupation_group", self._occupation(value, occupation_group, occupation_minor_group, level))]
-        return []          # employer_type, relationship_status, nationality, language_native, other
+            return [("occupation_group", self._occupation(value, occupation_group, occupation_minor_group))]
+        return [(attr_type, v)] if attr_type in AS_STATED and v else []      # `other` is never used
 
 
 def load_coarsener(cfg: dict) -> Coarsener:
@@ -220,7 +181,7 @@ def build_profiles(attrs: pd.DataFrame, turn_log: pd.DataFrame, sample: pd.DataF
         a = attrs[(attrs["dataset"] == ds) & (attrs["about"] == "user") & (attrs["confidence"] >= min_confidence)]
         cand = [(units[r.conversation_id], r.conversation_id, r.evidence, level, dim, val)
                 for r in a.itertuples(index=False) for level in LEVELS
-                for dim, val in coarsener.candidates(r.type, r.value, level, r.occupation_group,
+                for dim, val in coarsener.candidates(r.type, r.value, r.occupation_group,
                                                      r.occupation_minor_group)]
         cand = pd.DataFrame(cand, columns=["user", "conversation_id", "evidence", "level", "dim", "value"])
         for variant in VARIANTS:
@@ -253,7 +214,7 @@ def profile_summary(profiles: pd.DataFrame, min_cell: int = 10) -> pd.DataFrame:
     conflicting values, and how many ended up ambiguous or unmapped. Counts under min_cell are blanked."""
     rows = []
     for (ds, variant, level), g in profiles.groupby(["dataset", "variant", "level"]):
-        known, dims = known_values(g), list(level_dimensions(level))
+        known, dims = known_values(g), list(DIMENSIONS)
         for dim in (*dims, "any"):
             if dim == "any":
                 counts = {"n_with_value": known.notna().any(axis=1).sum(),

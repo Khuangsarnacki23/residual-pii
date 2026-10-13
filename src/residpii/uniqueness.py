@@ -19,7 +19,7 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-from .profiles import DIMENSIONS, known_values, level_dimensions
+from .profiles import DIMENSIONS, known_values
 from .sampling import ACTIVITY_LABELS
 
 GROUP = ["dataset", "variant", "level"]
@@ -76,7 +76,7 @@ def analyze(profiles: pd.DataFrame, ucfg: dict, acfg: dict, seed: int,
     reps, level_ci = int(acfg["bootstrap_reps"]), float(acfg["ci_level"])
     by_combo, by_act, summary = [], [], []
     for (ds, variant, level), g in profiles.groupby(GROUP):
-        all_combos = combos(max_size, level_dimensions(level))
+        all_combos = combos(max_size)
         rng = np.random.default_rng(seed)
         g = g.reset_index(drop=True)
         n = len(g)
@@ -160,7 +160,7 @@ def analyze(profiles: pd.DataFrame, ucfg: dict, acfg: dict, seed: int,
 
 # Dimensions that largely determine each other (a region implies its country, a school an education
 # level) are modelled as one joint factor; treating them as independent would count the same fact twice.
-JOINT = (("region", "country", "city", "nationality", "language_native"),
+JOINT = (("region", "country", "nationality", "language_native"),
          ("occupation_group", "employer_type"), ("education_level", "school"))
 POPULATION_COLUMNS = [*GROUP, "subset", "n_qi", "sample_users", "target_users", "share_unique_model",
                       "ci_low", "ci_high", "share_unique_observed"]
@@ -224,7 +224,7 @@ def population_estimate(profiles: pd.DataFrame, summary: pd.DataFrame, populatio
         if n < min_cell:
             continue
         rng = np.random.default_rng(seed)
-        all_combos = combos(max_size, level_dimensions(level))
+        all_combos = combos(max_size)
         known = known_values(g.reset_index(drop=True))
         codes = {f: _cell_codes(known, f) for c in all_combos for f in _factors(c)}
         sizes = sorted({int(x) for x in ucfg.get("sample_sizes") or [] if min_cell <= x < n} | {n})

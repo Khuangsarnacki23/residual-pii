@@ -1,14 +1,14 @@
 # Deterministic coarsening maps for per-user profiles (src/residpii/profiles.py).
 # Raw LLM values are matched after normalisation (lower-case, punctuation removed). Anything that
 # does not match becomes `unknown`, so a free-text value can never make a user look unique.
-# This applies to the `fine` and `coarse` levels. The `exact` level keeps values as written and uses
-# these tables only to merge spellings (USA / United States) and to add a known city's region.
+# Employer type, school, relationship status, nationality and native language have no table here
+# and are kept as stated.
 # These tables are deliberately small and English/US-centred; see docs/limitations.md.
 
-age_band_years: {fine: 10, coarse: 20}
+age_band_years: 10
 age_top_code: 80            # ages at or above this share one band
 
-# "AB:name" pairs by US census region. Fine level keeps the state; coarse level keeps the region.
+# "AB:name" pairs by US census region. Profiles keep the state.
 us_census_regions:
   northeast: ["CT:connecticut", "ME:maine", "MA:massachusetts", "NH:new hampshire", "RI:rhode island",
               "VT:vermont", "NJ:new jersey", "NY:new york", "PA:pennsylvania"]
@@ -22,7 +22,7 @@ us_census_regions:
               "UT:utah", "WY:wyoming", "AK:alaska", "CA:california", "HI:hawaii", "OR:oregon",
               "WA:washington"]
 
-# Canonical country -> aliases. Fine and coarse levels both keep the country.
+# Canonical country -> aliases.
 countries:
   united states: [usa, us, u.s., u.s.a., america, united states of america, the states]
   united kingdom: [uk, u.k., great britain, britain, england, scotland, wales, northern ireland]
@@ -170,13 +170,6 @@ school:
   - [high_school, '\b(?:high school|highschool|secondary school|gymnasium|lycee|sixth form)\b']
   - [less_than_high_school, '\b(?:middle school|elementary school|primary school|junior high)\b']
   - [some_college, '\b(?:university|college|institute of technology|polytechnic|community college)\b']
-education_coarse:
-  less_than_high_school: high_school_or_less
-  high_school: high_school_or_less
-  some_college: college
-  bachelors: college
-  graduate: graduate
-
 # Fallback when the LLM gives no usable SOC code: first matching pattern wins.
 # [pattern, major group, optional minor group]. Codes are llm.OCCUPATION_GROUPS.
 occupation_keywords:

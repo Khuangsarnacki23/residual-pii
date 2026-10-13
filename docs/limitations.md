@@ -88,14 +88,12 @@ figures are not separated from private individuals.
 ## Profiles and coarsening
 - **Lookup tables are small and US/English-centred.** Cities, regions and occupations outside
   them become `unknown` and drop out, which *under*states uniqueness for users elsewhere.
-- **Occupation groups** come from the LLM's SOC code when valid, otherwise from a keyword map; the
-  "fine" level falls back to the major group when no minor group is available, so it mixes
-  granularities.
+- **Occupation groups** come from the LLM's SOC code when valid, otherwise from a keyword map, and
+  fall back to the major group when no minor group is available, so they mix granularities.
 - **Schools are mapped to an education level** assuming current attendance.
 - **Majority vote hides change.** A user who moved or changed jobs looks like a conflict, and
   ties become `ambiguous` and drop out.
-- **Six dimensions only.** Employer type, relationship status, nationality and native language are
-  extracted but not used in profiles.
+- **`other` is not used.** Free-text attributes of that type cannot be matched across users.
 
 ## Uniqueness
 - **Within-sample uniqueness overstates population uniqueness.** A user unique among 2,000 sampled
@@ -112,12 +110,15 @@ figures are not separated from private individuals.
   which says the model fits there, not that it extrapolates. Its bootstrap interval is skewed
   upward, because a resample holds fewer distinct users than the sample. "Population" means users
   of this dataset with enough conversations to be sampled, not the public.
-- **The three levels bracket the answer.** `coarse` and `fine` keep six attributes and only values
-  the lookup tables recognise, so they understate what users revealed. `exact` keeps twelve
-  attribute types as written. It overstates uniqueness wherever two users described the same fact
-  in different words ("software developer" and "software engineer" count as different), and a user
-  whose own conversations word a fact two ways is treated as ambiguous on it. Report the range, and
-  do not quote the exact level alone.
+- **One profile definition, with judgment calls in it.** Six dimensions are generalised with lookup
+  tables (state or region, country, SOC occupation group, 10-year age band, gender, education
+  level); a value the tables miss is dropped, which understates what users revealed. Five are kept
+  as stated because there is no table for them (employer type, school, relationship status,
+  nationality, native language); two users who word the same fact differently look different on
+  these, which overstates uniqueness. Employer type and school are free text and are the most
+  exposed to this. Earlier versions of the analysis reported a stricter six-attribute profile and a
+  looser as-written one; on 600 users they gave 3-6% and 8-11% unique among all eligible users, and
+  the current definition should be read as sitting inside that range, not as exact.
 - **Unique is not identified.** k = 1 means no other sampled user shares the combination. Turning
   that into an identity needs outside data, which we never use.
 - **Bootstrap intervals hold class sizes fixed** and resample users, so they show sampling noise in

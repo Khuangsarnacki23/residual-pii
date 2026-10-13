@@ -145,7 +145,7 @@ results/<run>/   aggregate outputs (safe to commit)
 | `prevalence_by_role.csv` | Detector prevalence in user vs assistant turns (when both are fetched). |
 | `llm_attribute_prevalence.csv` | Share of users and conversations with ≥1 attribute, by type × evidence × about. |
 | `llm_run_stats.csv` | Turns processed, failures, latency, backend, model, prompt version. |
-| `profile_summary.csv` | Per dimension: users with a usable value, with conflicts, ambiguous, unmapped. Three levels: `coarse` and `fine` (six attributes, lookup tables) and `exact` (twelve attribute types as written). |
+| `profile_summary.csv` | Per dimension: users with a usable value, with conflicts, ambiguous, unmapped. Profiles have eleven dimensions: six generalised with lookup tables, five kept as stated. |
 | `uniqueness_by_combination.csv` | Per combination of 1–4 dimensions: users, share with k = 1 and k < 5, median k, CIs. |
 | `uniqueness_by_activity.csv` | Share of users unique on ≥1 combination, by conversations-per-user bucket. |
 | `uniqueness_summary.csv` | The same share for all users, and at smaller sample sizes. |

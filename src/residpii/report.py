@@ -101,7 +101,7 @@ def figures(prev: pd.DataFrame, by_task: pd.DataFrame, taxonomy: dict, fig_dir: 
 
 VARIANT_COLORS = {"stated_only": "#2a78d6", "stated_plus_inferred": "#eb6834"}   # palette slots 1-2
 PROFILE_VARIANT_LABELS = {"stated_only": "Stated only", "stated_plus_inferred": "Stated + inferred"}
-LEVEL_LABELS = {"coarse": "Coarse (6 attributes)", "fine": "Fine (6 attributes)", "exact": "As written (12 attributes)"}
+LEVEL_LABELS = {"generalized": "11 attributes, generalised where a lookup table exists"}
 
 
 def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.DataFrame | None = None) -> list[str]:
@@ -112,8 +112,8 @@ def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.Data
     made = []
     full = summary[(summary["ci_kind"] == "bootstrap_users") & summary["share_unique"].notna()]
     for ds, d in full.groupby("dataset"):
-        levels = [lv for lv in LEVEL_LABELS if lv in set(d["level"])]
-        fig, axes = plt.subplots(1, len(levels), figsize=(4.4 * len(levels) + 0.6, 3.4), sharey=True, squeeze=False)
+        levels = sorted(d["level"].unique())
+        fig, axes = plt.subplots(1, len(levels), figsize=(max(4.4 * len(levels) + 0.6, 7.2), 3.6), sharey=True, squeeze=False)
         for ax, level in zip(axes[0], levels):
             for variant, color in VARIANT_COLORS.items():
                 v = d[(d["level"] == level) & (d["variant"] == variant)].sort_values("n_qi")
@@ -126,7 +126,7 @@ def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.Data
                                                  & (pop["variant"] == variant)].sort_values("n_qi")
                 if e is not None and len(e):
                     ax.plot(e["n_qi"], e["share_unique_model"], color=color, linewidth=1.5, linestyle=(0, (4, 2)))
-            ax.set_title(LEVEL_LABELS[level], fontsize=10, color=TEXT_PRIMARY, loc="left")
+            ax.set_title(LEVEL_LABELS.get(level, level), fontsize=10, color=TEXT_PRIMARY, loc="left")
             ax.set_xticks(sorted(d["n_qi"].unique()))
             ax.set_xlabel("Quasi-identifiers combined (up to)", fontsize=9)
             ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10]))   # whole percents
@@ -227,16 +227,14 @@ of {llm_turns:,} turns). Turns longer than {max_turn_chars:,} characters were tr
 values were stored only in the access-restricted directory.
 
 ## Per-user profiles and uniqueness
-For each user we kept attributes about the user with confidence >= {min_confidence} and mapped
-them with fixed lookup tables (configs/coarsening.yaml) onto six dimensions: region, occupation
-group, age band, gender, education level and country. Values the tables do not cover were set to
-`unknown`. We used two coarsening levels (fine: state or region, 10-year age band, SOC minor group
-where available; coarse: census region or country, 20-year age band, SOC major group) and two
+For each user we kept attributes about the user with confidence >= {min_confidence} and built a
+profile on eleven dimensions. Six were generalised with fixed lookup tables (configs/coarsening.yaml)
+so that different wordings of one fact match: state or region, country, occupation (SOC minor group
+where available, else major group), 10-year age band, gender and education level; a value the
+tables do not cover was set to `unknown`. Five have no table and were kept as stated (normalised
+text): employer type, school, relationship status, nationality and native language. We report two
 variants (stated attributes only; stated plus inferred). When a user's conversations disagreed we
-took the majority value and treated ties as ambiguous. A third level, `exact`, keeps the values as
-written (normalised text, no lookup tables) and adds city, employer type, school, relationship
-status, nationality and native language. The coarsened levels understate what users revealed; the
-exact level overstates uniqueness where two users worded the same fact differently.
+took the majority value and treated ties as ambiguous.
 
 For every combination of one to {max_combo} dimensions we computed the equivalence-class size k
 among users with a usable value for each dimension in the combination, and report the share of
