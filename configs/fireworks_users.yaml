@@ -1,0 +1,22 @@
+# Main identifiability run on the available Fireworks credit: users drawn from the full WildChat
+# metadata scan, LLM extraction capped by sample_turns (about $0.00024 per turn with gpt-oss-120b).
+#
+#   export FIREWORKS_API_KEY=...
+#   residpii run --config configs/fireworks_users.yaml --datasets wildchat
+extends: user_level.yaml
+run_name: fireworks_users
+
+user_level:
+  n_users: 650
+
+llm:
+  enabled: true
+  backend: fireworks
+  model: accounts/fireworks/models/gpt-oss-120b
+  # This sends sampled user text to Fireworks. Switched on by Ethan on 2026-10-12;
+  # keep it on only while the dataset terms, your instructor/IRB and your partner allow it.
+  allow_hosted: true
+  sample_turns: 15000        # spend cap: whole users are kept until this many user turns
+
+uniqueness:
+  sample_sizes: [100, 200, 400]

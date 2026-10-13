@@ -1,0 +1,12 @@
+dataset,detector,category,spans_per_1k_tokens
+wildchat,presidio,account_id,0.0097415
+wildchat,presidio,date,4.30377
+wildchat,presidio,email,0.00610388
+wildchat,presidio,ip_address,0.00399222
+wildchat,presidio,location,5.73812
+wildchat,presidio,name,21.2128
+wildchat,presidio,nrp,3.55724
+wildchat,presidio,phone,0.00114747
+wildchat,presidio,url,3.00431
+wildchat,secrets,api_key_token,0.00117536
+wildchat,selfid,name,0.160219

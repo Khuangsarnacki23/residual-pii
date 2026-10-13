@@ -470,12 +470,15 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
         log(f"[llm] tokens billed this run: {sum(r.get('input_tokens', 0) for r in new):,} input, "
             f"{sum(r.get('output_tokens', 0) for r in new):,} output")
 
-    attrs, turn_log = [], []
+    attrs, turn_log, counted = [], [], set()
     for row, k, _, _ in jobs:
         rec = done[k]
         ident = (row.dataset, row.conversation_id, int(row.turn_index))
+        # Identical turns share one request, so its tokens are counted once.
+        tok = (0, 0) if k in counted else (rec.get("input_tokens", 0), rec.get("output_tokens", 0))
+        counted.add(k)
         turn_log.append((*ident, rec["status"], rec["cached"], rec["latency_s"], len(rec["attrs"]),
-                         len(row.text) > max_turn, rec.get("input_tokens", 0), rec.get("output_tokens", 0)))
+                         len(row.text) > max_turn, *tok))
         attrs += [(*ident, *(a[f] for f in Attribute.__dataclass_fields__)) for a in rec["attrs"]]
     return pd.DataFrame(attrs, columns=ATTR_COLUMNS), pd.DataFrame(turn_log, columns=LOG_COLUMNS)
 
