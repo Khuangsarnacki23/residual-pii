@@ -64,6 +64,19 @@ def main(argv: list[str] | None = None) -> int:
     for p in (ls, la):
         p.add_argument("--dataset", required=True, help="Dataset key, e.g. wildchat")
 
+    ld = sub.add_parser("llm-detect", help="LLM detector over every sampled user turn (sends text to Anthropic)")
+    ld.add_argument("--config", required=True)
+    ld.add_argument("--dataset", nargs="*", help="Dataset keys (default: labeling.datasets in the config)")
+    ld.add_argument("--allow-hosted", action="store_true",
+                    help="Required: acknowledges that user turns are sent to Anthropic's API")
+    ld.add_argument("--max-cost", type=float, default=20.0,
+                    help="Hard cap in USD on total spend across the listed datasets, including earlier runs")
+    ld.add_argument("--model", default="claude-haiku-5-5")
+    ld.add_argument("--effort", default="low", choices=["low", "medium", "high", "xhigh", "max"])
+    ld.add_argument("--workers", type=int, default=8)
+    ld.add_argument("--estimate", action="store_true", help="Print the estimated cost and exit (no API calls)")
+    ld.add_argument("--report", action="store_true", help="Only rebuild LLM prevalence tables from stored results")
+
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
 
@@ -80,6 +93,33 @@ def main(argv: list[str] | None = None) -> int:
                   "no disk) and Arena. Re-run with --confirm to proceed.", file=sys.stderr)
             return 2
         print(Pipeline(cfg).dedup_corpus().to_string(index=False))
+        return 0
+
+    if args.cmd == "llm-detect":
+        from . import llm_detect
+
+        dsets = args.dataset or cfg["labeling"]["datasets"]
+        if args.estimate:
+            est = llm_detect.estimate(cfg, dsets, args.model)
+            print(est.to_string(index=False))
+            print(f"total estimate: ${est['est_cost_usd'].sum():.2f} (cap ${args.max_cost:.2f})")
+            return 0
+        if not args.report:
+            if not args.allow_hosted:
+                print("This sends every sampled user turn to Anthropic's API (a third party).\n"
+                      "Re-run with --allow-hosted to proceed (or --estimate to see the cost).", file=sys.stderr)
+                return 2
+            for ds in dsets:
+                try:
+                    stats = llm_detect.run(cfg, ds, args.model, args.effort, args.max_cost, dsets, args.workers)
+                except RuntimeError as e:
+                    print(f"[llm-detect] {e}", file=sys.stderr)
+                    return 2
+                print(json.dumps(stats, indent=2))
+                if stats.get("interrupted") or stats.get("stopped_for_budget"):
+                    break
+        tables = llm_detect.prevalence(cfg, dsets)
+        print(tables["llm_coverage"].to_string(index=False))
         return 0
 
     if args.cmd == "label":

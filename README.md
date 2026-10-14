@@ -69,6 +69,21 @@ Requires a completed `run` on the same config. Each command reads `labeling:` in
   and recall at each Presidio threshold, a breakdown of what flagged spans actually are, and gold
   prevalence. Before adjudication, `label score --gold kai` scores against a single annotator.
 
+### LLM detector over the full sample (opt-in, hosted)
+
+```bash
+.venv/bin/residpii llm-detect --config configs/default.yaml --estimate                    # cost only, no API calls
+.venv/bin/residpii llm-detect --config configs/default.yaml --allow-hosted --max-cost 20  # all datasets
+```
+
+Labels every sampled user turn with Claude Haiku 5.5 (`--model` to change), using the same guideline as
+`label llm`. `--max-cost` is a hard cap on total spend across the listed datasets, earlier runs
+included. Reruns resume. Turns go in a seeded, conversation-shuffled order, so an early stop leaves a
+random subset of whole conversations. Writes text-free spans to
+`restricted/spans_llm_<ds>.parquet` as two detectors: `llm_detector` (spans the model judged private,
+i.e. the writer or a real third party) and `llm_detector_all` (every span it marked). Aggregate tables:
+`llm_prevalence.csv`, `llm_coverage.csv`. `label score` then grades the LLM detector next to Presidio.
+
 ### Storage
 Data is streamed column by column from the Hub; nothing is downloaded in full. Text is read only
 for row groups that contain sampled conversations, and only the user `content`/`role` fields.
@@ -90,6 +105,8 @@ src/residpii/
   safety.py      keyed span hashing, SafeSpan, output-table guard
   labeling.py    label-set sampling, label store, agreement, precision/recall vs gold
   annotate.py    local blind labelling server (+ annotate.html)
+  llm_label.py   opt-in Claude annotator for the label sets
+  llm_detect.py  opt-in LLM detector over the full sample, with a spending cap
   pipeline.py    stages + content-keyed cache
 results/<run>/   aggregate outputs (safe to commit)
 ~/.residual-pii/ raw sampled text + masked span store (outside the repo, 0700)

@@ -308,7 +308,9 @@ def detector_spans_for_items(spans: pd.DataFrame, items: pd.DataFrame, lcfg: dic
     key = ["dataset", "conversation_id", "turn_index"]
     res = residual(spans, threshold)
     res = res.merge(items[[*key, "item_id"]], on=key)
-    res = res.assign(category=res["category"].map(lcfg["detector_map"])).dropna(subset=["category"])
+    gold_cats = set(lcfg["span_categories"]["direct"]) | set(lcfg["span_categories"]["quasi"])
+    mapped = res["category"].map(lambda c: lcfg["detector_map"].get(c, c if c in gold_cats else None))
+    res = res.assign(category=mapped).dropna(subset=["category"])
     return res[["item_id", "detector", "category", "start", "end", "score"]]
 
 
@@ -455,6 +457,9 @@ def cmd_score(cfg: dict, datasets: list[str] | None = None, gold_from: str | Non
             print(f"[label] {ds}: no labels from '{gold_from}', skipped", file=sys.stderr)
             continue
         spans = pd.read_parquet(paths.restricted / f"spans_{ds}.parquet")
+        llm_spans = paths.restricted / f"spans_llm_{ds}.parquet"
+        if llm_spans.exists():   # full-sample LLM detector (residpii llm-detect)
+            spans = pd.concat([spans, pd.read_parquet(llm_spans)], ignore_index=True)
         for thr in sorted({cfg["presidio"]["score_threshold"], *cfg["presidio"]["sensitivity_thresholds"]}):
             det = detector_spans_for_items(spans, items, lcfg, thr)
             res = score(items, gold, det, lcfg, cfg["analysis"], _seed(cfg))

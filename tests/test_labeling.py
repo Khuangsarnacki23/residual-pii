@@ -224,3 +224,39 @@ def test_llm_refuses_to_mix_models(labelled_run):
     assert stats["labelled"] == 3 and "fallbacks" not in fake.calls[0]   # Haiku has no server-side fallback
     assert len(labeling.load_labels(pipe.paths, "wildchat", "llm")) == 3
     assert list(labeling.label_dir(pipe.paths, "wildchat").glob("llm.*.bak.jsonl"))
+
+
+# ---------------------------------------------------------------- full-sample LLM detector (mocked client)
+
+from residpii import llm_detect
+
+
+def test_llm_detect_budget_spans_prevalence_and_scoring(labelled_run):
+    cfg, pipe, _, _ = labelled_run
+    fake = _FakeMessages()
+    client = SimpleNamespace(beta=SimpleNamespace(messages=fake))
+    # A tiny budget stops early and never overshoots the cap.
+    s1 = llm_detect.run(cfg, "wildchat", max_cost=0.0005, workers=2, client=client)
+    assert s1["stopped_for_budget"] and s1["spent_total_usd"] <= 0.0005 + 1e-9
+    # Resume with a real budget: finishes the rest without redoing turns.
+    s2 = llm_detect.run(cfg, "wildchat", max_cost=5, workers=2, client=client)
+    assert not s2["stopped_for_budget"] and s2["already_done"] == s1["processed"]
+    assert s1["processed"] + s2["processed"] == s2["turns"]
+    tables = llm_detect.prevalence(cfg, ["wildchat"])
+    prev = tables["llm_prevalence"]
+    row = prev[(prev.detector == "llm_detector") & (prev.category == "name") & (prev.variant == "all")]
+    assert row["n_positive"].iloc[0] > 0
+    spans = pd.read_parquet(pipe.paths.restricted / "spans_llm_wildchat.parquet")
+    assert set(spans["detector"]) == {"llm_detector", "llm_detector_all"}
+    for c in CANARIES:
+        assert not spans.astype(str).apply(lambda col: col.str.contains(c, regex=False)).any().any()
+    # Scoring now includes the LLM detector as a graded tool.
+    texts = _texts(cfg, pd.read_parquet(labeling.items_path(pipe.paths, "wildchat")))
+    for iid, text in texts.items():
+        labeling.save_label(pipe.paths, "wildchat", "kai",
+                            labeling.validate_record({**_gold_for(text), "item_id": iid}, cfg["labeling"], len(text)))
+    pr = labeling.cmd_score(cfg, ["wildchat"], gold_from="kai")["labels_precision_recall"]
+    assert "llm_detector" in set(pr["detector"])
+    for f in pipe.paths.tables.glob("llm_*.csv"):
+        blob = f.read_text().casefold()
+        assert not any(c.casefold() in blob for c in CANARIES)
