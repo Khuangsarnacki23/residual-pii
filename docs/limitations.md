@@ -3,7 +3,7 @@
 ## Current scope
 - **Presidio + rule-based secrets only.** No transformer NER or LLM detector yet, so there is no
   detector-agreement analysis and no sensitive-topic tier.
-- **No human validation yet.** All numbers are *detector-reported* prevalence: they mix true and
+- **No human labels collected yet** (the workflow exists: `residpii label`). Until then, All numbers are *detector-reported* prevalence: they mix true and
   false positives. Precision, recall and F1 are unknown. State this prominently.
 - **Task types are keyword heuristics**, not a validated classifier.
 
@@ -49,3 +49,19 @@ figures are not separated from private individuals.
 - Prevalence is per conversation and is confounded by length. See `rates_per_1k_tokens.csv`.
 - Detection is not identification: a detected name or city doesn't mean the person is
   identifiable, and we never test that (no re-identification by design).
+
+## Human-label benchmark
+- Turns over 4,000 characters (about 3.6% of WildChat user turns) are not eligible for labelling, so
+  precision and recall describe shorter turns. The rare-direct stratum is small (19 turns at a
+  Presidio threshold of 0.5), so recall on rare categories will have wide intervals.
+- Precision counts a detector span as correct if it overlaps a private gold span of the same
+  category by at least half of the shorter span (`min_overlap`). `precision_any_category` relaxes
+  the category requirement.
+- Agreement statistics are unweighted (they describe the label set as drawn). Precision, recall and
+  gold prevalence are weighted.
+- The labels cover user turns only. Assistant turns and non-English text are out of scope.
+- **LLM-only labels are not ground truth.** If precision and recall are computed against `--gold llm`,
+  they measure agreement with Claude, not accuracy, and the LLM detector (once built) would be
+  graded against a model of the same kind. Report them that way, and validate a subset by hand.
+- Using `label llm` sends the label-set turns to a third party (Anthropic). The paper's ethics section
+  must say so.

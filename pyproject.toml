@@ -21,12 +21,17 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1"]
+# Opt-in hosted LLM annotator (`residpii label llm --allow-hosted`); sends user text to Anthropic.
+llm = ["anthropic==1.13.0"]
 
 [project.scripts]
 residpii = "residpii.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+residpii = ["*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
