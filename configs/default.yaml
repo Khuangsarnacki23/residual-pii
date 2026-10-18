@@ -81,3 +81,48 @@ dedup:
   num_perm: 128
   bands: 16
   jaccard_threshold: 0.8
+
+# Human-labelled benchmark (`residpii label ...`). Annotators label user turns blind: they never see
+# detector output. Labels live under the restricted directory; only aggregate scores leave it.
+labeling:
+  datasets: [wildchat, lmsys, arena]   # each gets its own label set
+  n_items: 300
+  # Turns longer than this are not eligible (pasted documents); the excluded share is reported.
+  max_chars: 4000
+  # Strata by what the stored detectors flagged in the turn. `share` is the fraction of the label set;
+  # oversampling rare strata is corrected by inclusion weights, so precision/recall stay unbiased.
+  strata:
+    rare_direct: {share: 0.20}   # email, phone, account/ID number, IP address, API key/credential
+    name:        {share: 0.35}   # a name and no rare direct identifier
+    quasi_only:  {share: 0.20}   # location/date/NRP/URL but no direct identifier
+    none:        {share: 0.25}   # nothing flagged: needed to estimate recall
+  annotators: [kai, ethan]
+  adjudicator: adjudicated
+  host: 127.0.0.1
+  port: 8765
+  # Gold span categories. Detector categories are mapped onto these for scoring (see `detector_map`).
+  span_categories:
+    direct: [name, email, phone, account_id, ip_address, api_key_token, street_address,
+             username_handle, personal_url, date_of_birth]
+    quasi:  [location, date, organization, occupation, age, nrp, education, health, other_quasi]
+  # Whose information a span is. Only `self` and `third_party` count as real (private) PII.
+  whose: [self, third_party, public_figure, fictional, not_personal, unclear]
+  private_whose: [self, third_party]
+  # Per-user attributes (Step 2 profiles), each marked stated or inferred.
+  attributes: [age_band, gender, location_country, location_region, occupation, employer,
+               education, relationship, health, nationality_ethnicity, religion, political, income]
+  detector_map:
+    name: name
+    email: email
+    phone: phone
+    account_id: account_id
+    ip_address: ip_address
+    api_key_token: api_key_token
+    url: personal_url
+    location: location
+    date: date
+    nrp: nrp
+    organization: organization
+  # Span matching: a detector span matches a gold span if they overlap by at least this share of
+  # the shorter span (0 = any overlap).
+  min_overlap: 0.5

@@ -76,6 +76,8 @@ SAFE_TEXT_COLUMNS = {
     "stratum", "month", "turn_bucket", "model", "variant", "metric", "placeholder_shape",
     "language", "span_hmac", "user_key", "group", "subset", "pattern", "repo", "revision",
     "detectors", "dedup_status", "category_label",
+    # labelling benchmark: vocabularies from configs/default.yaml, never data text
+    "whose", "annotator", "label_stratum", "attribute", "gold",
 }
 
 

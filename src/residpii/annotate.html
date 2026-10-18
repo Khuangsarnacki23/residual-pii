@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PII Labelling</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --text: #1b1b19; --muted: #6a6964; --line: #e4e3df;
+  --accent: #2a78d6; --danger: #c43b31;
+  --direct: #fde2a8; --direct-b: #d79a1c; --quasi: #cfe6fb; --quasi-b: #2a78d6; --sel: #ffd1e0;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161615; --panel: #1f1f1d; --text: #ecebe7; --muted: #a09f9a; --line: #34332f;
+    --direct: #5a4415; --direct-b: #e0a93a; --quasi: #173a5c; --quasi-b: #6aaef0; --sel: #5c2236; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, sans-serif; }
+header { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+header h1 { font-size: 15px; margin: 0; }
+header .meta { color: var(--muted); }
+header .spacer { flex: 1; }
+main { display: grid; grid-template-columns: 170px minmax(0, 1fr) 360px; gap: 0; height: calc(100vh - 49px); }
+#list { overflow-y: auto; border-right: 1px solid var(--line); padding: 6px 0; }
+#list button { display: flex; width: 100%; justify-content: space-between; border: 0; background: none; color: var(--text); padding: 3px 12px; font: inherit; cursor: pointer; text-align: left; }
+#list button.cur { background: var(--line); font-weight: 600; }
+#list .st { color: var(--muted); }
+#textpane { overflow-y: auto; padding: 16px 24px; }
+#text { white-space: pre-wrap; word-wrap: break-word; font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+#text .d { background: var(--direct); border-bottom: 2px solid var(--direct-b); }
+#text .q { background: var(--quasi); border-bottom: 2px solid var(--quasi-b); }
+#text .hl { outline: 2px solid var(--danger); }
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0; }
+aside { overflow-y: auto; border-left: 1px solid var(--line); padding: 12px 16px; background: var(--panel); }
+aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
+aside h2:first-child { margin-top: 0; }
+.row { display: flex; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.row .q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; font-size: 12px; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--line); white-space: nowrap; }
+select, input[type=text], textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+textarea { width: 100%; min-height: 50px; }
+button.btn { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.x { border: 0; background: none; color: var(--danger); cursor: pointer; font-size: 15px; padding: 0 4px; }
+#popup { position: fixed; display: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: 10px; z-index: 5; width: 330px; }
+#popup .grid { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+#popup .grid button { font-size: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 12px; padding: 2px 8px; cursor: pointer; }
+#popup .grid button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+#popup .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+.ref { border: 1px dashed var(--line); border-radius: 6px; padding: 6px; margin-bottom: 8px; }
+.status { font-size: 12px; color: var(--muted); }
+.status.err { color: var(--danger); }
+kbd { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PII labelling</h1>
+  <span class="meta" id="who"></span>
+  <span class="meta" id="prog"></span>
+  <span class="spacer"></span>
+  <span class="status" id="status"></span>
+  <button class="btn" id="prev">← Prev</button>
+  <button class="btn primary" id="save">Save &amp; next →</button>
+</header>
+<main>
+  <nav id="list"></nav>
+  <section id="textpane">
+    <div class="hint">Select text to mark a span. Mark every identifier and quasi-identifier, including fictional and public ones, and say whose it is. <kbd>Ctrl/⌘+Enter</kbd> saves and moves on.</div>
+    <div id="text"></div>
+  </section>
+  <aside>
+    <h2>Spans</h2>
+    <div id="spans"></div>
+    <h2>Attributes about the user</h2>
+    <div class="hint">What the turn says (stated) or implies (inferred) about the person writing it.</div>
+    <div id="attrs"></div>
+    <div class="row">
+      <select id="a_attr"></select>
+      <select id="a_kind"><option>stated</option><option>inferred</option></select>
+    </div>
+    <div class="row"><input type="text" id="a_val" placeholder="value, e.g. 30-39, nurse" style="flex:1"><button class="btn" id="a_add">Add</button></div>
+    <h2>Item</h2>
+    <label><input type="checkbox" id="skip"> Skip (not English, empty, or unreadable)</label>
+    <textarea id="note" placeholder="Note (optional)"></textarea>
+    <div id="refbox"></div>
+  </aside>
+</main>
+<div id="popup">
+  <div class="lbl">Direct identifier</div><div class="grid" id="p_direct"></div>
+  <div class="lbl">Quasi-identifier</div><div class="grid" id="p_quasi"></div>
+  <div class="lbl">Whose is it</div><div class="grid" id="p_whose"></div>
+  <div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn" id="p_cancel">Cancel</button><button class="btn primary" id="p_ok">Add span</button></div>
+</div>
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+const $ = (id) => document.getElementById(id);
+let CFG, ITEMS = [], cur = -1, item = null, label = null, dirty = false, pending = null, hover = -1;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "X-Token": TOKEN, "Content-Type": "application/json" } });
+  if (!r.ok) throw new Error((await r.text()) || r.status);
+  return r.json();
+}
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "on" ? Object.entries(v).forEach(([ev, f]) => e.addEventListener(ev, f)) : e.setAttribute(k, v);
+  kids.flat().forEach((c) => e.append(c instanceof Node ? c : document.createTextNode(String(c))));
+  return e;
+}
+const isDirect = (c) => CFG.direct.includes(c);
+function setStatus(msg, err = false) { $("status").textContent = msg; $("status").className = "status" + (err ? " err" : ""); }
+
+async function init() {
+  if (!TOKEN) { document.body.textContent = "Missing session token: open the exact URL printed by `residpii label serve`."; return; }
+  CFG = await api("/api/config");
+  $("who").textContent = `${CFG.annotator} · ${CFG.mode}`;
+  CFG.attributes.forEach((a) => $("a_attr").append(el("option", {}, a)));
+  for (const [box, vals] of [["p_direct", CFG.direct], ["p_quasi", CFG.quasi]])
+    vals.forEach((v) => $(box).append(el("button", { "data-cat": v, on: { click: () => pick("category", v) } }, v.replaceAll("_", " "))));
+  CFG.whose.forEach((v) => $("p_whose").append(el("button", { "data-whose": v, on: { click: () => pick("whose", v) } }, v.replaceAll("_", " "))));
+  ITEMS = await api("/api/items");
+  renderList();
+  const first = ITEMS.findIndex((i) => !i.done);
+  go(first < 0 ? 0 : first);
+}
+
+function renderList() {
+  $("list").replaceChildren(...ITEMS.map((it, k) => el("button", { class: k === cur ? "cur" : "", on: { click: () => go(k) } },
+    it.item_id, el("span", { class: "st" }, it.skip ? "skip" : it.done ? "✓" : ""))));
+  const n = ITEMS.filter((i) => i.done).length;
+  $("prog").textContent = `${n} / ${ITEMS.length} labelled`;
+}
+
+async function go(k) {
+  if (k < 0 || k >= ITEMS.length) return;
+  if (dirty && !confirm("Discard unsaved changes to this item?")) return;
+  cur = k; item = await api(`/api/item/${ITEMS[k].item_id}`);
+  label = item.label ? structuredClone(item.label) : { spans: [], attributes: [], skip: false, note: "" };
+  dirty = false; hidePopup(); render(); renderList(); setStatus(item.label ? "saved earlier" : "");
+  $("textpane").scrollTop = 0;
+}
+
+function render() {
+  renderText(); renderSpans(); renderAttrs();
+  $("skip").checked = label.skip; $("note").value = label.note || "";
+  renderRefs();
+}
+
+function renderText() {
+  const t = item.text, cuts = new Set([0, t.length]);
+  label.spans.forEach((s) => { cuts.add(s.start); cuts.add(s.end); });
+  const pts = [...cuts].sort((a, b) => a - b), frag = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const cover = label.spans.map((s, j) => [s, j]).filter(([s]) => s.start <= a && s.end >= b);
+    let cls = "";
+    if (cover.length) cls = cover.some(([s]) => isDirect(s.category)) ? "d" : "q";
+    if (cover.some(([, j]) => j === hover)) cls += " hl";
+    const span = el("span", { "data-s": a, class: cls }, t.slice(a, b));
+    if (cover.length) span.title = cover.map(([s]) => `${s.category} · ${s.whose}`).join("\n");
+    frag.push(span);
+  }
+  $("text").replaceChildren(...frag);
+}
+
+function spanRow(s, actions) {
+  return el("div", { class: "row", on: { mouseenter: () => { hover = label.spans.indexOf(s); renderText(); }, mouseleave: () => { hover = -1; renderText(); } } },
+    el("span", { class: "q", title: item.text.slice(s.start, s.end) }, item.text.slice(s.start, s.end)),
+    el("span", { class: "tag" }, s.category), el("span", { class: "tag" }, s.whose), ...actions);
+}
+
+function renderSpans() {
+  $("spans").replaceChildren(...(label.spans.length ? label.spans.map((s, j) => {
+    const sel = el("select", { on: { change: (e) => { s.whose = e.target.value; touch(); } } }, ...CFG.whose.map((w) => el("option", w === s.whose ? { selected: "" } : {}, w)));
+    const row = spanRow(s, [el("button", { class: "x", title: "Remove", on: { click: () => { label.spans.splice(j, 1); hover = -1; touch(); render(); } } }, "×")]);
+    row.querySelectorAll(".tag")[1].replaceWith(sel);
+    return row;
+  }) : [el("div", { class: "hint" }, "No spans yet.")]));
+}
+
+function renderAttrs() {
+  $("attrs").replaceChildren(...label.attributes.map((a, j) => el("div", { class: "row" },
+    el("span", { class: "tag" }, a.attribute), el("span", { class: "tag" }, a.kind), el("span", { class: "q" }, a.value),
+    el("button", { class: "x", on: { click: () => { label.attributes.splice(j, 1); touch(); renderAttrs(); } } }, "×"))));
+}
+
+function renderRefs() {
+  const box = $("refbox"); box.replaceChildren();
+  if (CFG.mode !== "adjudicate") return;
+  box.append(el("h2", {}, "Annotators"));
+  const key = (s) => `${s.start}:${s.end}:${s.category}:${s.whose}`;
+  for (const [who, ref] of Object.entries(item.refs)) {
+    const have = new Set(label.spans.map(key));
+    const haveA = new Set(label.attributes.map((a) => `${a.attribute}:${a.kind}:${a.value.trim().toLowerCase()}`));
+    const div = el("div", { class: "ref" }, el("b", {}, who), ref.skip ? " (skipped)" : "", ref.note ? el("div", { class: "hint" }, ref.note) : "");
+    ref.spans.forEach((s) => { if (!have.has(key(s))) div.append(spanRow(s, [el("button", { class: "btn", on: { click: () => { label.spans.push({ ...s }); sortSpans(); touch(); render(); } } }, "Accept")])); });
+    ref.attributes.forEach((a) => { if (!haveA.has(`${a.attribute}:${a.kind}:${a.value.trim().toLowerCase()}`)) div.append(el("div", { class: "row" },
+      el("span", { class: "tag" }, a.attribute), el("span", { class: "tag" }, a.kind), el("span", { class: "q" }, a.value),
+      el("button", { class: "btn", on: { click: () => { label.attributes.push({ ...a }); touch(); render(); } } }, "Accept"))); });
+    box.append(div);
+  }
+  if (!Object.keys(item.refs).length) box.append(el("div", { class: "hint" }, "No annotator has labelled this item."));
+}
+
+function sortSpans() { label.spans.sort((a, b) => a.start - b.start || a.end - b.end); }
+function touch() { dirty = true; setStatus("unsaved"); }
+
+// ---- selection -> span
+function offsetOf(node, off) {
+  const seg = (node.nodeType === 3 ? node.parentElement : node).closest("[data-s]");
+  if (!seg || !$("text").contains(seg)) return null;
+  return Number(seg.dataset.s) + (node.nodeType === 3 ? off : 0);
+}
+$("text").addEventListener("mouseup", (ev) => {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || sel.isCollapsed) return;
+  const r = sel.getRangeAt(0);
+  let a = offsetOf(r.startContainer, r.startOffset), b = offsetOf(r.endContainer, r.endOffset);
+  if (a === null || b === null) return;
+  const t = item.text;
+  while (a < b && /\s/.test(t[a])) a++;          // trim whitespace picked up by the selection
+  while (b > a && /\s/.test(t[b - 1])) b--;
+  if (a >= b) return;
+  pending = { start: a, end: b, category: null, whose: "self" };
+  showPopup(ev.clientX, ev.clientY);
+});
+function showPopup(x, y) {
+  const p = $("popup"); p.style.display = "block";
+  p.style.left = Math.min(x, innerWidth - 350) + "px"; p.style.top = Math.min(y + 12, innerHeight - p.offsetHeight - 10) + "px";
+  refreshPopup();
+}
+function hidePopup() { $("popup").style.display = "none"; pending = null; }
+function pick(k, v) { pending[k] = v; refreshPopup(); }
+function refreshPopup() {
+  document.querySelectorAll("#popup [data-cat]").forEach((b) => b.classList.toggle("on", b.dataset.cat === pending.category));
+  document.querySelectorAll("#popup [data-whose]").forEach((b) => b.classList.toggle("on", b.dataset.whose === pending.whose));
+}
+$("p_cancel").onclick = () => { hidePopup(); window.getSelection().removeAllRanges(); };
+$("p_ok").onclick = () => {
+  if (!pending.category) { setStatus("pick a category", true); return; }
+  label.spans.push(pending); sortSpans(); hidePopup(); window.getSelection().removeAllRanges(); touch(); render();
+};
+
+$("a_add").onclick = () => {
+  label.attributes.push({ attribute: $("a_attr").value, kind: $("a_kind").value, value: $("a_val").value.trim() });
+  $("a_val").value = ""; touch(); renderAttrs();
+};
+$("skip").onchange = (e) => { label.skip = e.target.checked; touch(); };
+$("note").oninput = (e) => { label.note = e.target.value; touch(); };
+
+async function save(next) {
+  try {
+    await api(`/api/label/${item.item_id}`, { method: "POST", body: JSON.stringify(label) });
+    ITEMS[cur].done = true; ITEMS[cur].skip = label.skip; dirty = false; setStatus("saved");
+    if (next) { const k = ITEMS.findIndex((i, j) => j > cur && !i.done); go(k < 0 ? Math.min(cur + 1, ITEMS.length - 1) : k); }
+    else renderList();
+  } catch (e) { setStatus("save failed: " + e.message, true); }
+}
+$("save").onclick = () => save(true);
+$("prev").onclick = () => go(cur - 1);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hidePopup();
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(true); }
+});
+window.addEventListener("beforeunload", (e) => { if (dirty) e.preventDefault(); });
+init().catch((e) => setStatus(e.message, true));
+</script>
+</body>
+</html>
