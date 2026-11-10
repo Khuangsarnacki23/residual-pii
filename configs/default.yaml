@@ -94,7 +94,13 @@ secrets:
 selfid:
   enabled: true
 
-# LLM detector for quasi-identifiers (stated and inferred). Off by default.
+# Regexes for types Presidio has no recognizer for; reported as detector `rules`. Text that another
+# detector also counts is counted once (see analysis.overlap_exclusions).
+rules:
+  enabled: true
+
+# LLM detector: direct identifiers as located spans, and quasi-identifiers (stated and inferred).
+# Off by default.
 # Every backend is a hosted API, so enabling this sends sampled user text to a third party. The run
 # aborts unless allow_hosted is true, and that needs the dataset terms, the instructor/IRB and both
 # partners to agree.
@@ -115,10 +121,14 @@ llm:
   sample_turns: 2000
   concurrency: 4             # parallel requests; lower it if the API rate-limits
   timeout_s: 120
-  prompt_version: v1         # configs/prompts/qi_extract_<version>.txt
+  prompt_version: v2         # configs/prompts/qi_extract_<version>.txt
+  # The model also quotes direct identifiers (names, emails, addresses, ...). Each quote is located
+  # in the turn and stored as offsets, category and keyed hash, like every other detector's spans.
+  # Needs a prompt that asks for them (v2); v1 is quasi-identifiers only.
+  extract_spans: true
   min_confidence: 0.6        # attributes below this are left out of per-user profiles
 
-# Per-user uniqueness of coarsened quasi-identifier profiles (needs llm.enabled).
+# Per-user uniqueness of coarsened quasi-identifier profiles (needs llm.enabled and a user proxy).
 uniqueness:
   max_combination_size: 4
   # Uniqueness is measured within the sample and falls as the sample grows; these subsample sizes

@@ -32,13 +32,45 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from .safety import suppress_small_cells
+from .config import load_taxonomy
+from .detect import is_dummy
+from .redactions import compile_patterns, placeholder_spans
+from .safety import SafeSpan, keyed_hash, suppress_small_cells
 
 ATTRIBUTE_TYPES = ("occupation", "employer_type", "city", "state_or_region", "country", "age", "age_range",
                    "gender", "school", "education_level", "relationship_status", "nationality",
                    "language_native", "other")
 EVIDENCE = ("stated", "inferred")
 ABOUT = ("user", "third_party", "public_figure", "fictional", "unclear")
+# Direct identifiers the model quotes from the turn (llm.extract_spans). Each type is a category in
+# configs/taxonomy.yaml; the entity is the label that category already uses, so the taxonomy and the
+# dummy-value filter apply unchanged.
+SPAN_TYPES = {
+    "name": ("PERSON", "a person's name, full or partial"),
+    "email": ("EMAIL_ADDRESS", "an email address"),
+    "phone": ("PHONE_NUMBER", "a phone or fax number"),
+    "street_address": ("STREET_ADDRESS", "a street or postal address"),
+    "account_id": ("CONTEXT_ID", "a government, financial, student, employee or other personal ID number"),
+    "ip_address": ("IP_ADDRESS", "an IP address"),
+    "personal_url": ("PERSONAL_URL", "a link to a person's profile, account or personal site"),
+    "handle": ("SOCIAL_HANDLE", "a username or @handle"),
+    "api_key_token": ("SECRET_TOKEN", "an API key, access token, private key or password"),
+    "date_of_birth": ("DATE_OF_BIRTH", "a full date of birth"),
+}
+# What each task type in configs/taxonomy.yaml means, for the prompt. A type without an entry is
+# listed by name alone.
+TASK_DESCRIPTIONS = {
+    "story_roleplay": "fiction, role-play, fan fiction, scripts, world-building, character or plot work",
+    "code": "writing, fixing, explaining or running code, queries, configuration or other technical output",
+    "translation": "translating text from one language to another",
+    "job_application": "resumes, cover letters, applications, personal statements, interview preparation",
+    "communication": "drafting or answering an email, letter, message or post meant for a real recipient",
+    "editing": "rewriting, proofreading, paraphrasing or improving text the writer supplied",
+    "summarization": "summarising or extracting points from text the writer supplied",
+    "creative_other": "poems, lyrics, jokes, slogans, names and other short creative pieces",
+    "info_or_other": "questions, explanations, advice, analysis and anything else",
+}
+MAX_SPAN_OCCURRENCES = 50   # a quoted identifier is located at most this many times in one turn
 
 # SOC 2018 major groups, plus two codes for people outside the occupational classification.
 OCCUPATION_GROUPS = {
@@ -138,6 +170,44 @@ def parse_response(raw: str) -> list[Attribute]:
     return out
 
 
+def parse_task(raw: str, allowed: tuple[str, ...]) -> str | None:
+    """The "task_type" of a response; None when the answer has none. A value outside `allowed`
+    rejects the response."""
+    try:
+        obj = json.loads(raw)
+    except (TypeError, ValueError):
+        raise ParseError("not_json") from None
+    task = obj.get("task_type") if isinstance(obj, dict) else None
+    if task is not None and task not in allowed:
+        raise ParseError("bad_task_type")
+    return task
+
+
+def parse_spans(raw: str) -> list[dict]:
+    """The "spans" list of a response, as strictly as `parse_response`. A response without the key
+    has no spans."""
+    try:
+        obj = json.loads(raw)
+    except (TypeError, ValueError):
+        raise ParseError("not_json") from None
+    items = obj.get("spans", []) if isinstance(obj, dict) else None
+    if not isinstance(items, list):
+        raise ParseError("no_spans_list")
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ParseError("span_not_object")
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip() or len(text) > MAX_VALUE_CHARS:
+            raise ParseError("bad_span_text")
+        if item.get("type") not in SPAN_TYPES:
+            raise ParseError("bad_span_type")
+        if item.get("about") not in ABOUT:
+            raise ParseError("bad_about")
+        out.append({"text": text, "type": item["type"], "about": item["about"]})
+    return out
+
+
 RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {"attributes": {"type": "array", "items": {
@@ -160,6 +230,22 @@ RESPONSE_SCHEMA = {
 }
 
 
+_SPAN_SCHEMA = {"type": "array", "items": {
+    "type": "object",
+    "properties": {"text": {"type": "string"}, "type": {"type": "string", "enum": list(SPAN_TYPES)},
+                   "about": {"type": "string", "enum": list(ABOUT)}},
+    "required": ["text", "type", "about"],
+    "additionalProperties": False,
+}}
+RESPONSE_SCHEMA_SPANS = {**RESPONSE_SCHEMA, "required": ["task_type", "spans", "attributes"],
+                         "properties": {"task_type": {"type": "string"}, "spans": _SPAN_SCHEMA,
+                                        **RESPONSE_SCHEMA["properties"]}}
+
+
+def response_schema(lcfg: dict) -> dict:
+    return RESPONSE_SCHEMA_SPANS if lcfg.get("extract_spans") else RESPONSE_SCHEMA
+
+
 # ---------------------------------------------------------------- prompt
 
 
@@ -168,6 +254,7 @@ class Prompt:
     system: str
     user_template: str
     sha: str
+    task_types: tuple[str, ...] = ()     # non-empty when the prompt asks for a task label
 
     def render(self, turn: str, context: str) -> tuple[str, str]:
         fill = {"turn": turn, "context": context or "(none)"}
@@ -180,10 +267,23 @@ def load_prompt(cfg: dict) -> Prompt:
     raw = path.read_text()
     if "=====USER=====" not in raw:
         raise ValueError(f"{path} must contain a '=====USER=====' line separating system and user parts")
+    if bool(cfg["llm"].get("extract_spans")) != ("{{span_types}}" in raw):
+        raise ValueError(f"llm.extract_spans={cfg['llm'].get('extract_spans')!r} does not match {path.name}: "
+                         "a prompt asks for spans exactly when it contains {{span_types}}")
     system, user = raw.split("=====USER=====", 1)
+    span_types = "\n".join(f"     {name}: {desc}" for name, (_, desc) in SPAN_TYPES.items())
+    system = system.replace("{{span_types}}", span_types)
+    task_types: tuple[str, ...] = ()
+    if "{{task_types}}" in raw:
+        taxonomy = load_taxonomy(cfg)
+        task_types = (*taxonomy["task_types"], taxonomy["default_task_type"])
+        system = system.replace("{{task_types}}", "\n".join(
+            f"     {t}: {TASK_DESCRIPTIONS[t]}" if t in TASK_DESCRIPTIONS else f"     {t}" for t in task_types))
     groups = "\n".join(f"    {code}  {name}" for code, name in OCCUPATION_GROUPS.items())
     system = system.replace("{{types}}", ", ".join(ATTRIBUTE_TYPES)).replace("{{occupation_groups}}", groups)
-    return Prompt(system.strip(), user.strip(), hashlib.sha256(raw.encode()).hexdigest()[:16])
+    # The hash keys the response cache, so it covers the task list the prompt was filled with.
+    sha = hashlib.sha256((raw + "|".join(task_types)).encode()).hexdigest()[:16]
+    return Prompt(system.strip(), user.strip(), sha, task_types)
 
 
 # ---------------------------------------------------------------- backends
@@ -216,11 +316,11 @@ class FireworksBackend:
         self.temperature = lcfg.get("temperature", 0)
         self.timeout = lcfg.get("timeout_s", 120)
         self.max_tokens = int(lcfg.get("max_output_tokens", 2000))
-        # json_schema constrains the answer to RESPONSE_SCHEMA (and turns reasoning output off);
+        # json_schema constrains the answer to the response schema (and turns reasoning output off);
         # json_object only guarantees valid JSON, for models without schema support.
         if lcfg.get("fireworks_response_format", "json_schema") == "json_schema":
             self.response_format = {"type": "json_schema",
-                                    "json_schema": {"name": "quasi_identifiers", "schema": RESPONSE_SCHEMA}}
+                                    "json_schema": {"name": "quasi_identifiers", "schema": response_schema(lcfg)}}
         else:
             self.response_format = {"type": "json_object"}
         # Reasoning models bill their thinking as output tokens; for this extraction task most of the
@@ -285,7 +385,7 @@ class AnthropicBackend:
         # Current Claude models reject a non-default temperature, so llm.temperature is not sent;
         # effort is the control they expose. Set llm.anthropic_effort to null for models without it.
         effort = lcfg.get("anthropic_effort", "low")
-        self.output_config = {"format": {"type": "json_schema", "schema": RESPONSE_SCHEMA}}
+        self.output_config = {"format": {"type": "json_schema", "schema": response_schema(lcfg)}}
         if effort:
             self.output_config["effort"] = effort
 
@@ -354,7 +454,7 @@ def select_turns(turns: pd.DataFrame, sample: pd.DataFrame, lcfg: dict, seed: in
     """User turns to send to the LLM, each with the preceding turn (if it was fetched) as context.
 
     `llm.sample_turns` caps the work. In user-level mode whole users are kept or dropped together,
-    because a profile built from half a user's conversations would understate what they revealed."""
+    because per-user shares from half a user's conversations would understate what they revealed."""
     turns = turns.sort_values(["dataset", "conversation_id", "turn_index"]).reset_index(drop=True)
     prev = turns.groupby(["dataset", "conversation_id"]).shift(1)
     adjacent = prev["turn_index"] == turns["turn_index"] - 1
@@ -380,7 +480,8 @@ def select_turns(turns: pd.DataFrame, sample: pd.DataFrame, lcfg: dict, seed: in
 TURN_KEYS = ["dataset", "conversation_id", "turn_index"]
 ATTR_COLUMNS = [*TURN_KEYS, *Attribute.__dataclass_fields__]
 LOG_COLUMNS = [*TURN_KEYS, "status", "cached", "latency_s", "n_attributes", "truncated", "input_tokens",
-               "output_tokens"]
+               "output_tokens", "n_spans", "task_type"]
+SPAN_ITEM_COLUMNS = [*TURN_KEYS, "text", "type", "about"]
 
 
 class ResponseCache:
@@ -404,12 +505,12 @@ class ResponseCache:
                 f.write(json.dumps(rec) + "\n")
 
 
-def _call(backend, prompt: Prompt, turn: str, context: str) -> dict:
+def _call(backend, prompt: Prompt, turn: str, context: str, want_spans: bool = False) -> dict:
     """One turn: ask, parse strictly, retry once on a malformed answer. Token counts cover every
     attempt, for backends that report them."""
     system, user = prompt.render(turn, context)
     usage = getattr(backend, "last_usage", lambda: (0, 0))
-    t0, status, attrs, tok_in, tok_out = time.monotonic(), "parse_failure", [], 0, 0
+    t0, status, attrs, spans, task, tok_in, tok_out = time.monotonic(), "parse_failure", [], [], None, 0, 0
     for attempt in (1, 2):
         try:
             raw = backend.complete(system, user)
@@ -418,11 +519,14 @@ def _call(backend, prompt: Prompt, turn: str, context: str) -> dict:
             break
         tok_in, tok_out = tok_in + usage()[0], tok_out + usage()[1]
         try:
-            attrs, status = [asdict(a) for a in parse_response(raw)], "ok"
+            parsed = [asdict(a) for a in parse_response(raw)]
+            spans = parse_spans(raw) if want_spans else []
+            task = parse_task(raw, prompt.task_types) if prompt.task_types else None
+            attrs, status = parsed, "ok"
             break
         except ParseError:
             continue
-    return {"status": status, "attrs": attrs, "attempts": attempt, "latency_s": time.monotonic() - t0,
+    return {"status": status, "attrs": attrs, "spans": spans, "task_type": task, "attempts": attempt, "latency_s": time.monotonic() - t0,
             "input_tokens": tok_in, "output_tokens": tok_out}
 
 
@@ -430,6 +534,14 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
             cache_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Returns (attributes: one row per extracted attribute, with raw values -> restricted only;
     turn log: one row per turn with status and latency, no text)."""
+    return extract_with_spans(selected, lcfg, prompt, backend, key, cache_path)[:2]
+
+
+def extract_with_spans(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: bytes,
+                       cache_path: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """`extract`, plus the quoted direct identifiers (one row each, raw text: keep it in memory and
+    pass it to `locate_spans`). The third frame is empty unless llm.extract_spans is set."""
+    want_spans = bool(lcfg.get("extract_spans"))
     cache = ResponseCache(cache_path)
     max_turn, max_ctx = int(lcfg["max_turn_chars"]), int(lcfg.get("max_context_chars", 1500))
     settings = [backend.name, backend.model, prompt.sha, lcfg.get("temperature"), max_turn, max_ctx,
@@ -450,7 +562,7 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
 
     def work(item):
         k, (turn, context) = item
-        rec = {"k": k, **_call(backend, prompt, turn, context)}
+        rec = {"k": k, **_call(backend, prompt, turn, context, want_spans)}
         cache.put(rec)
         with lock:
             counter["n"] += 1
@@ -470,7 +582,7 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
         log(f"[llm] tokens billed this run: {sum(r.get('input_tokens', 0) for r in new):,} input, "
             f"{sum(r.get('output_tokens', 0) for r in new):,} output")
 
-    attrs, turn_log, counted = [], [], set()
+    attrs, turn_log, span_items, counted = [], [], [], set()
     for row, k, _, _ in jobs:
         rec = done[k]
         ident = (row.dataset, row.conversation_id, int(row.turn_index))
@@ -478,9 +590,54 @@ def extract(selected: pd.DataFrame, lcfg: dict, prompt: Prompt, backend, key: by
         tok = (0, 0) if k in counted else (rec.get("input_tokens", 0), rec.get("output_tokens", 0))
         counted.add(k)
         turn_log.append((*ident, rec["status"], rec["cached"], rec["latency_s"], len(rec["attrs"]),
-                         len(row.text) > max_turn, *tok))
+                         len(row.text) > max_turn, *tok, len(rec.get("spans", [])), rec.get("task_type")))
         attrs += [(*ident, *(a[f] for f in Attribute.__dataclass_fields__)) for a in rec["attrs"]]
-    return pd.DataFrame(attrs, columns=ATTR_COLUMNS), pd.DataFrame(turn_log, columns=LOG_COLUMNS)
+        span_items += [(*ident, s["text"], s["type"], s["about"]) for s in rec.get("spans", [])]
+    return (pd.DataFrame(attrs, columns=ATTR_COLUMNS), pd.DataFrame(turn_log, columns=LOG_COLUMNS),
+            pd.DataFrame(span_items, columns=SPAN_ITEM_COLUMNS))
+
+
+def _occurrences(text: str, quote: str) -> list[int]:
+    """Start offsets of non-overlapping occurrences of `quote`, exact first, then ignoring case."""
+    for hay, needle in ((text, quote), (text.casefold(), quote.casefold())):
+        if len(hay) != len(text):          # case folding changed the length; offsets would be wrong
+            continue
+        starts, i = [], hay.find(needle)
+        while i != -1 and len(starts) < MAX_SPAN_OCCURRENCES:
+            starts.append(i)
+            i = hay.find(needle, i + len(needle))
+        if starts:
+            return starts
+    return []
+
+
+def locate_spans(span_items: pd.DataFrame, selected: pd.DataFrame, cfg: dict, taxonomy: dict,
+                 key: bytes) -> tuple[pd.DataFrame, int]:
+    """Turns the model's quotes into SafeSpan rows (detector `llm`): every occurrence of the quote in
+    the turn, as offsets, category and keyed hash. The quoted text is not kept. Also returns how many
+    quotes could not be found in their turn (the model changed or invented the text)."""
+    max_turn = int(cfg["llm"]["max_turn_chars"])
+    texts = {(r.dataset, r.conversation_id, int(r.turn_index)): r.text[:max_turn]
+             for r in selected.itertuples(index=False)}
+    patterns, rows, unlocated = {}, {}, 0
+    for it in span_items.itertuples(index=False):
+        ident = (it.dataset, it.conversation_id, int(it.turn_index))
+        text, quote = texts[ident], it.text.strip()
+        if it.dataset not in patterns:
+            patterns[it.dataset] = compile_patterns(cfg, it.dataset)
+        starts = _occurrences(text, quote)
+        unlocated += not starts
+        entity = SPAN_TYPES[it.type][0]
+        tier = taxonomy["categories"].get(it.type, {}).get("tier", "unmapped")
+        ph = placeholder_spans(text, patterns[it.dataset])
+        for s in starts:
+            e = s + len(quote)
+            in_ph = any(s < pe and ps < e for ps, pe in ph)
+            rows.setdefault((*ident, s, e, entity), SafeSpan(
+                *ident, s, e, "llm", entity, it.type, tier, 1.0, keyed_hash(key, text[s:e]), in_ph,
+                is_dummy(entity, text[s:e]), role="user", about_user=it.about == "user", about=it.about).to_row())
+    cols = list(SafeSpan.__dataclass_fields__) + ["length"]
+    return pd.DataFrame(list(rows.values()), columns=cols), int(unlocated)
 
 
 # ---------------------------------------------------------------- aggregate outputs (safe)
@@ -523,6 +680,79 @@ def attribute_prevalence(attrs: pd.DataFrame, turn_log: pd.DataFrame, sample: pd
     return out
 
 
+def conversation_tasks(turn_log: pd.DataFrame) -> pd.DataFrame:
+    """One task type per conversation from the per-turn labels: the most common one, and the earliest
+    turn's on a tie. Conversations with no labeled turn are left out."""
+    tl = turn_log[turn_log["task_type"].notna()].sort_values("turn_index")
+    keys = ["dataset", "conversation_id"]
+    counts = tl.groupby([*keys, "task_type"], sort=False).agg(n=("turn_index", "size"), first=("turn_index", "min"))
+    best = counts.reset_index().sort_values(["n", "first"], ascending=[False, True]).drop_duplicates(keys)
+    return best[[*keys, "task_type"]].reset_index(drop=True)
+
+
+def _counts(spans: pd.DataFrame) -> pd.DataFrame:
+    return spans[~spans["in_placeholder"] & ~spans["is_dummy"]]
+
+
+def span_prevalence(llm_spans: pd.DataFrame, turn_log: pd.DataFrame, sample: pd.DataFrame,
+                    min_cell: int = 10) -> pd.DataFrame:
+    """Share of LLM-processed users and conversations with >= 1 quoted direct identifier, by category
+    x about. "private" is user or third_party: a real person who is not a public figure."""
+    rows, spans = [], _counts(llm_spans)
+    groups = {**{a: [a] for a in ABOUT}, "private": ["user", "third_party"], "any": list(ABOUT)}
+    for ds, tl in turn_log.groupby("dataset"):
+        units = unit_keys(sample[sample["dataset"] == ds])
+        n_conv = tl["conversation_id"].nunique()
+        n_users = tl["conversation_id"].map(units).nunique()
+        s = spans[spans["dataset"] == ds].assign(unit=lambda d: d["conversation_id"].map(units))
+        for cat in (*SPAN_TYPES, "any"):
+            for about, members in groups.items():
+                m = s[s["about"].isin(members)]
+                m = m if cat == "any" else m[m["category"] == cat]
+                rows.append({"dataset": ds, "category": cat, "about": about,
+                             "n_users": m["unit"].nunique(), "share_users": m["unit"].nunique() / n_users,
+                             "n_conversations": m["conversation_id"].nunique(),
+                             "share_conversations": m["conversation_id"].nunique() / n_conv,
+                             "users_processed": n_users, "conversations_processed": n_conv})
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    by_user = suppress_small_cells(out, "n_users", ["share_users"], min_cell)
+    out = suppress_small_cells(by_user, "n_conversations", ["share_conversations"], min_cell)
+    out["suppressed"] |= by_user["suppressed"]
+    return out
+
+
+def detector_agreement(llm_spans: pd.DataFrame, other_spans: pd.DataFrame, turn_log: pd.DataFrame,
+                       max_turn_chars: int) -> pd.DataFrame:
+    """Span-level agreement between the LLM and the other detectors, on the turns the LLM answered.
+
+    `other_spans` are the other detectors' residual spans (analysis.residual). One row per category x
+    detector: how many of that detector's spans overlap a span from the other side, and what the LLM
+    said the overlapped text is about. For detector `llm` the other side is every other detector; for
+    the rest it is the LLM. Counts of spans, no values."""
+    ok = turn_log.loc[turn_log["status"] == "ok", TURN_KEYS].drop_duplicates()
+    other = other_spans[(other_spans["role"] == "user") & (other_spans["end"] <= max_turn_chars)
+                        & other_spans["category"].isin(SPAN_TYPES)].merge(ok, on=TURN_KEYS)
+    mine = _counts(llm_spans).merge(ok, on=TURN_KEYS)
+    pairs = (other.reset_index(drop=True).rename_axis("o").reset_index()
+             .merge(mine.reset_index(drop=True).rename_axis("l").reset_index(), on=TURN_KEYS, suffixes=("_o", "_l")))
+    pairs = pairs[(pairs["start_o"] < pairs["end_l"]) & (pairs["start_l"] < pairs["end_o"])]
+    other, mine = other.reset_index(drop=True), mine.reset_index(drop=True)
+    # What the LLM said about each of the other detectors' spans (the first overlapping LLM span).
+    other_about = pairs.drop_duplicates("o").set_index("o")["about_l"]
+    other = other.assign(matched=other.index.isin(pairs["o"]), llm_about=other.index.map(other_about))
+    mine = mine.assign(matched=mine.index.isin(pairs["l"]), llm_about=mine["about"], detector="llm")
+    rows = []
+    for (ds, cat, det), g in pd.concat([other, mine]).groupby(["dataset", "category", "detector"]):
+        hit = g[g["matched"]] if det != "llm" else g
+        rows.append({"dataset": ds, "category": cat, "detector": det, "n_spans": len(g),
+                     "n_matched": int(g["matched"].sum()), "share_matched": float(g["matched"].mean()),
+                     **{f"n_about_{a}": int((hit["llm_about"] == a).sum()) for a in ABOUT}})
+    cols = ["dataset", "category", "detector", "n_spans", "n_matched", "share_matched", *(f"n_about_{a}" for a in ABOUT)]
+    return pd.DataFrame(rows, columns=cols)
+
+
 def run_stats(turn_log: pd.DataFrame, backend, lcfg: dict) -> pd.DataFrame:
     rows = []
     for ds, tl in turn_log.groupby("dataset"):
@@ -535,6 +765,7 @@ def run_stats(turn_log: pd.DataFrame, backend, lcfg: dict) -> pd.DataFrame:
                      "failure_rate": float((tl["status"] != "ok").mean()),
                      "mean_latency_s": float(fresh["latency_s"].mean()) if len(fresh) else np.nan,
                      "attributes_extracted": int(tl["n_attributes"].sum()),
+                     "spans_quoted": int(tl["n_spans"].sum()),
                      # Multiply by the model's per-token prices for the spend. "_new" is this run only;
                      # cached turns cost nothing again.
                      "input_tokens": int(tl["input_tokens"].sum()), "output_tokens": int(tl["output_tokens"].sum()),

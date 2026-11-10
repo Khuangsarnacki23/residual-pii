@@ -63,10 +63,17 @@ def _main(argv: list[str] | None = None) -> int:
     ls.add_argument("--second-annotator", choices=["llm"],
                     help="Also run the LLM on the labeled turns for agreement statistics")
 
+    la = sub.add_parser("label-agreement", help="Agreement between two annotators' files for the same batch")
+    la.add_argument("--config", required=True)
+    la.add_argument("--a", required=True, help="First annotator's batch file")
+    la.add_argument("--b", required=True, help="Second annotator's batch file")
+
     rv = sub.add_parser("review", help="Open a local page for checking LLM extractions and labeling turns")
     rv.add_argument("--config", required=True)
     rv.add_argument("--datasets", nargs="*", help="Subset of dataset keys to run")
     rv.add_argument("--n-attrs", type=int, default=20, help="LLM extractions to check")
+    rv.add_argument("--annotator", default="", help="Your name (letters, digits, - or _). Each annotator's labels "
+                    "go to their own copy of the batch, so two people can label it independently")
     rv.add_argument("--port", type=int, default=0, help="Port on 127.0.0.1 (default: any free port)")
     rv.add_argument("--no-browser", action="store_true", help="Print the address instead of opening it")
 
@@ -109,9 +116,13 @@ def _main(argv: list[str] | None = None) -> int:
         print(out.to_string(index=False))
         return 0
 
+    if args.cmd == "label-agreement":
+        print(Pipeline(cfg).label_agreement(args.a, args.b).to_string(index=False))
+        return 0
+
     if args.cmd == "review":
         from .review import serve
-        serve(Pipeline(cfg), args.port, args.n_attrs, open_browser=not args.no_browser)
+        serve(Pipeline(cfg), args.port, args.n_attrs, open_browser=not args.no_browser, annotator=args.annotator)
         return 0
     return 1
 

@@ -37,7 +37,6 @@
   },
   "figures": [
     "prevalence_by_category",
-    "direct_by_task",
-    "uniqueness_by_n_qi_wildchat"
+    "direct_by_task"
   ]
 }

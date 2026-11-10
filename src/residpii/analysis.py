@@ -7,12 +7,41 @@ import pandas as pd
 ANY = "any"   # pseudo-detector/category meaning "union over detectors/categories"
 
 
-def residual(spans: pd.DataFrame, threshold: float = 0.0) -> pd.DataFrame:
-    """Spans that count as residual PII: not a pre-existing placeholder, not a dummy value, and (for
-    Presidio) at or above the analysis score threshold."""
+# Presidio entities that a `rules` span can be a more specific reading of: a profile link is also a
+# URL, a date of birth is also a date, a street address holds a place name.
+GENERIC_ENTITIES = frozenset({"URL", "DATE_TIME", "LOCATION", "PERSON", "NRP", "ORGANIZATION"})
+_TURN = ["dataset", "conversation_id", "turn_index", "role"]
+
+
+def _counts(spans: pd.DataFrame, threshold: float) -> pd.Series:
     keep = ~spans["in_placeholder"] & ~spans["is_dummy"]
-    keep &= (spans["detector"] != "presidio") | (spans["score"] >= threshold)
-    return spans[keep]
+    return keep & ((spans["detector"] != "presidio") | (spans["score"] >= threshold))
+
+
+def overlap_exclusions(kept: pd.DataFrame) -> tuple[pd.Index, pd.Index]:
+    """One piece of text is counted once. Among spans that otherwise count, returns the index of
+    (a) `rules` spans that overlap another detector's specific detection, which already covers them,
+    and (b) generic Presidio spans that overlap one of the remaining `rules` spans, which refines them."""
+    rules, empty = kept[kept["detector"] == "rules"], kept.index[:0]
+    if rules.empty:
+        return empty, empty
+    cols = [*[c for c in _TURN if c in kept], "start", "end", "detector", "entity"]
+    other = kept.loc[kept["detector"] != "rules", cols].rename_axis("o").reset_index()
+    pairs = rules[cols].rename_axis("r").reset_index().merge(other, on=cols[:-4], suffixes=("_r", "_o"))
+    pairs = pairs[(pairs["start_r"] < pairs["end_o"]) & (pairs["start_o"] < pairs["end_r"])]
+    generic = (pairs["detector_o"] == "presidio") & pairs["entity_o"].isin(GENERIC_ENTITIES)
+    covered = pd.Index(pairs.loc[~generic, "r"].unique())
+    refined = pd.Index(pairs.loc[generic & ~pairs["r"].isin(covered), "o"].unique())
+    return covered, refined
+
+
+def residual(spans: pd.DataFrame, threshold: float = 0.0) -> pd.DataFrame:
+    """Spans that count as residual PII: not a pre-existing placeholder, not a dummy value, (for
+    Presidio) at or above the analysis score threshold, and not a second detection of text another
+    detector already counts (`overlap_exclusions`)."""
+    kept = spans[_counts(spans, threshold)]
+    covered, refined = overlap_exclusions(kept)
+    return kept.drop(index=covered.union(refined))
 
 
 def conversation_indicators(sample: pd.DataFrame, spans: pd.DataFrame, taxonomy: dict,
@@ -168,8 +197,11 @@ def rates_per_1k_tokens(spans: pd.DataFrame, stats: pd.DataFrame, sample: pd.Dat
 def exclusion_table(spans: pd.DataFrame, threshold: float = 0.0) -> pd.DataFrame:
     """How many stored detections were set aside, and why."""
     below = (spans["detector"] == "presidio") & (spans["score"] < threshold)
-    s = spans.assign(reason=np.select([spans["in_placeholder"], spans["is_dummy"], below],
-                                      ["placeholder_overlap", "dummy_value", "below_threshold"], "residual"))
+    covered, refined = overlap_exclusions(spans[_counts(spans, threshold)])
+    s = spans.assign(reason=np.select(
+        [spans["in_placeholder"], spans["is_dummy"], below, spans.index.isin(covered), spans.index.isin(refined)],
+        ["placeholder_overlap", "dummy_value", "below_threshold", "covered_by_other_detector", "refined_by_rule"],
+        "residual"))
     t = s.groupby(["dataset", "detector", "category", "reason"]).size().unstack("reason", fill_value=0)
     return t.reset_index()
 

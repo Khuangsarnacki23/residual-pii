@@ -50,15 +50,19 @@ Use these names exactly; they are the categories in `configs/taxonomy.yaml`.
 
 | `pii_type` | Label | Do not label |
 |---|---|---|
-| `name` | A person's full or partial name, including a first name alone when it refers to a specific person. Usernames and handles that work as a name. | Company, product and model names. Honorifics alone ("Sir"). Generic roles ("my boss"). |
+| `name` | A person's full or partial name, including a first name alone when it refers to a specific person. | Company, product and model names. Honorifics alone ("Sir"). Generic roles ("my boss"). |
 | `email` | Email addresses. | |
 | `phone` | Phone and fax numbers. | Other long numbers (order numbers, IDs). |
 | `account_id` | Government and financial identifiers: SSN, passport, driver's licence, bank account, IBAN, card number, crypto wallet, medical licence. | |
 | `ip_address` | IPv4 and IPv6 addresses. | Version numbers that look like IPs ("1.2.3.4" of a library). |
-| `url` | URLs that point to a person or their account (profile, personal site, private document link). | Links to public sites, docs and news. |
+| `handle` | Usernames and @handles on a named platform ("instagram @...", "discord name#1234"). | Handles of companies and public accounts mentioned as a topic. |
+| `personal_url` | A link to a person's profile or account on a social or code platform (LinkedIn, GitHub, Facebook, Instagram, X, TikTok, Telegram, Reddit). | Links to a repository, post or company page. |
+| `url` | Other URLs that point to a person (personal site, private document link). | Links to public sites, docs and news. |
 | `api_key_token` | API keys, access tokens, private keys, passwords. | Variable names (`API_KEY`) without a value. |
-| `location` | Places: country, region, city, street address, named building. | Places in a general-knowledge question with no person attached ("capital of France") still count as `location`; mark `about` as `public`. |
-| `date` | Dates tied to a person or event in their life (birth date, appointment, hire date). | Dates in general text ("in 1066"), durations, times of day. |
+| `street_address` | A street or postal address, with the house number. | A street or city named without a house number (`location`). |
+| `location` | Places: country, region, city, named building. | Places in a general-knowledge question with no person attached ("capital of France") still count as `location`; mark `about` as `public`. |
+| `date_of_birth` | A full date of birth (day, month and year). | A birth year or age alone (`date`). |
+| `date` | Other dates tied to a person or event in their life (appointment, hire date, birth year). | Dates in general text ("in 1066"), durations, times of day. |
 | `nrp` | Nationality, religion, political affiliation, ethnicity of a person or group of people. | Languages ("translate into French"). |
 | `organization` | Employers, schools, hospitals, clubs and other organisations a person is linked to. | Well-known companies mentioned as a topic ("how does Google rank pages"). |
 | `none` | The turn contains no personal information. | |
@@ -117,3 +121,32 @@ the labeled turns first.
 
 Two annotators should label an overlapping subset independently so that human agreement can be
 reported alongside.
+
+## Attributes (what the message reveals about a person)
+
+Besides spans, record each quasi-identifying attribute the message reveals: occupation, employer
+type, city, state or region, country, age or age range, gender, school, education level,
+relationship status, nationality, native language. One entry per attribute type and person.
+
+- **stated**: the message says it outright ("I'm a nurse", "my wife and I"). Also select the words
+  as a span when a span type fits (a city is a `location`).
+- **inferred**: never said, but a careful reader would conclude it with reasonable confidence from
+  topic, wording or circumstances (asking how to prepare for a first-year calculus midterm implies a
+  student). Do not record guesses from stereotype: a cooking question says nothing about gender,
+  and a British spelling alone does not settle a country.
+- **about**: the same four choices as for spans. Attributes of a character in a story are
+  `fictional`.
+- The value is optional and is not compared between annotators; type, stated/inferred and about are.
+
+Inferred labels are where two annotators differ most. That disagreement is a result, so do not
+discuss individual messages until both of you have finished the batch.
+
+## Two annotators
+
+1. Both read this guide and label the same 20-message trial batch, then compare
+   (`residpii label-agreement`) and settle any rule that was read differently. Update this guide.
+2. Both label the main batch independently, each with `--annotator <name>`.
+3. First pass blind. Use "Compare with the detectors" only after labeling a message yourself;
+   anything added then is marked and left out of recall.
+4. Run `label-agreement`. Resolve disagreements together into one adjudicated file, and report the
+   agreement figures from before adjudication.

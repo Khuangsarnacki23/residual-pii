@@ -1,0 +1,2 @@
+dataset,backend,model,prompt_version,turns_processed,turns_from_cache,turns_truncated,failures,refusals,failure_rate,mean_latency_s,attributes_extracted,spans_quoted,input_tokens,output_tokens,input_tokens_new,output_tokens_new,quotes_not_found
+wildchat,fireworks,accounts/fireworks/models/gpt-oss-120b,v2,11436,288,199,1,0,8.74432e-05,0.704641,1014,716,22528418,892162,22121726,876696,2

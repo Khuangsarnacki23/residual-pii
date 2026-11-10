@@ -1,0 +1,4 @@
+dataset,placeholder_shape,occurrences,conversations,configured
+wildchat,<PRESIDIO_ANONYMIZED_PERSON>,25,20,True
+wildchat,<PRESIDIO_ANONYMIZED_EMAIL_ADDRESS>,29,19,True
+wildchat,<PRESIDIO_ANONYMIZED_PHONE_NUMBER>,6,5,True

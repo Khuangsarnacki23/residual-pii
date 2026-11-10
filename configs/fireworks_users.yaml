@@ -1,4 +1,4 @@
-# Main identifiability run on the available Fireworks credit: users drawn from the full WildChat
+# LLM detector run on the available Fireworks credit: users drawn from the full WildChat
 # metadata scan, LLM extraction capped by sample_turns (about $0.00024 per turn with gpt-oss-120b).
 #
 #   export FIREWORKS_API_KEY=...
@@ -17,6 +17,5 @@ llm:
   # keep it on only while the dataset terms, your instructor/IRB and your partner allow it.
   allow_hosted: true
   sample_turns: 15000        # spend cap: whole users are kept until this many user turns
-
-uniqueness:
-  sample_sizes: [100, 200, 400]
+  prompt_version: v1         # the prompt these results were produced with
+  extract_spans: false

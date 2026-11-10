@@ -4,6 +4,8 @@ Families are kept separate (the `detector` field):
   presidio : Presidio AnalyzerEngine with spaCy NER + built-in pattern recognizers
   secrets  : regexes for API keys, tokens, private keys and hard-coded passwords
   selfid   : self-introductions ("my name is X"); a name the user gives as their own
+  rules    : regexes for types Presidio has no recognizer for (profile links, handles, street
+             addresses, dates of birth, IDs named in context, international phone numbers)
 
 Raw span text is used in-process for exactly two things: the keyed hash and the
 dummy/placeholder-value check (`is_dummy`). Neither the text nor the matched value is returned.
@@ -42,6 +44,9 @@ _TEST_CARDS = {"4111111111111111", "4242424242424242", "5555555555554444", "3782
 # Fragments that mark a value as dummy wherever they occur.
 _PLACEHOLDERISH = re.compile(r"(?i)x{4,}|\*{4,}|your[_\- ]?(?:api|key|token|secret|password)|"
                              r"(.)\1{7,}|1234567|abcdef")
+# The account part of a profile link or handle, when it is a stand-in ("@username", ".../in/johndoe").
+_DUMMY_ACCOUNT = re.compile(r"(?i)(?:^|[/@])(?:your[\-_.]?(?:user)?name|your[\-_.]?handle|user(?:name)?|handle|example|"
+                            r"john[\-_.]?doe|jane[\-_.]?doe|profile|someone|me)/?$")
 # Ellipses and <angle brackets> are dummy only when they are the whole value: "..." and "<name>" are
 # placeholders, but "Dr. Smith..." is a real name followed by punctuation.
 _PLACEHOLDER_WHOLE = re.compile(r"(?:\.{3,}|…+|<[^>]*>)+")
@@ -56,7 +61,7 @@ def is_dummy(entity: str, value: str) -> bool:
         return low in _DUMMY_NAMES or v == "DAN"   # "DAN" = widely shared jailbreak persona
     if entity == "EMAIL_ADDRESS":
         return low.rsplit("@", 1)[-1] in _DUMMY_EMAIL_DOMAINS
-    if entity == "PHONE_NUMBER":
+    if entity in ("PHONE_NUMBER", "INTL_PHONE"):
         d = re.sub(r"\D", "", v)
         return (len(set(d)) <= 2 or "1234567" in d or "0123456" in d
                 or re.search(r"555\d{4}$", d) is not None)   # NANP 555 numbers are fictional
@@ -70,6 +75,8 @@ def is_dummy(entity: str, value: str) -> bool:
             return False
     if entity == "URL":
         return bool(re.search(r"(?i)\b(?:example\.(?:com|org|net)|localhost|127\.0\.0\.1)\b", v))
+    if entity in ("PERSONAL_URL", "SOCIAL_HANDLE"):
+        return _DUMMY_ACCOUNT.search(v) is not None
     return False
 
 
@@ -155,6 +162,89 @@ def selfid_matches(text: str) -> Iterable[tuple[int, int, str]]:
             if (s, e) not in seen:
                 seen.add((s, e))
                 yield s, e, "SELF_NAME"
+
+
+# ---------------------------------------------------------------- rules
+
+# Types Presidio has no recognizer for. Where one of these spans coincides with another detector's
+# span, `analysis.residual` counts the text once (see `analysis.GENERIC_ENTITIES`).
+
+_PROFILE_URL = re.compile(
+    r"(?i)(?<![\w.@\-])(?:https?://)?(?:www\.|m\.|mobile\.|[a-z]{2}\.)?(?:"
+    r"(linkedin)\.com/(?:in|pub)/([\w\-%.]{3,100})"
+    r"|(facebook)\.com/(profile\.php\?id=\d{5,})"
+    r"|(github|instagram|twitter|x|facebook|fb)\.com/([\w.\-]{2,50})(?![\w.\-]*/[\w.\-])"   # not a repo or post path
+    r"|(tiktok)\.com/@([\w.\-]{2,30})"
+    r"|(t)\.me/([A-Za-z]\w{4,31})"
+    r"|(reddit)\.com/u(?:ser)?/([\w\-]{3,20}))")
+# First path segments that are site pages, not accounts.
+_SITE_PAGES = frozenset("""
+    about accounts addstickers apps blog business collections contact customer developers dialog docs
+    enterprise events explore features gaming gist groups hashtag help home home.php i intent issues iv
+    join joinchat l.php login login.php marketplace new notifications orgs p pages photo.php plugins
+    policies pricing privacy proxy pulls readme reel reels s search security settings share sharer
+    sharer.php signup site sponsors stories terms topics tr trending tv watch
+""".split())
+
+_HANDLE_CONTEXT = (r"(?:instagram|insta|ig|twitter|telegram|tiktok|snapchat|snap|discord|github|reddit|twitch|"
+                   r"youtube|linkedin|skype|kik|handle|user ?name|user ?id|follow me|add me|dm me|find me|"
+                   r"reach me|contact me)")
+_HANDLE_PATTERNS = [
+    # "@name" or "u/name" within 30 characters of a platform or contact word, on the same line. The
+    # look-behind keeps out email addresses and URL paths.
+    re.compile(rf"(?i)\b{_HANDLE_CONTEXT}\b[^\n@]{{0,30}}?(?<![\w@./])(@[A-Za-z_][\w.]{{1,28}}\w|u/[\w\-]{{3,20}})"),
+    re.compile(r"(?i)\bdiscord\b[^\n#]{0,30}?(?<![\w#])([\w.]{2,32}#\d{4})\b"),
+]
+
+_STREET_SUFFIX = (r"(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Terrace|Highway|Hwy|"
+                  r"Parkway|Pkwy|Circle|Cir|Crescent|Cres)")
+_STREET = re.compile(
+    rf"\b\d{{1,5}}[A-Za-z]?(?:[ \t]+(?:[NSEW]|North|South|East|West)\.?)?((?:[ \t]+[A-Z0-9][A-Za-z0-9'’.\-]*){{1,4}}?)"
+    rf"[ \t]+{_STREET_SUFFIX}\b\.?(?:,?[ \t]+(?:Apt|Apartment|Unit|Suite|Ste|Flat)\.?[ \t]*#?[A-Za-z0-9\-]{{1,6}})?")
+# "2 Hard Drive", "1 Google Drive": a suffix word used in its ordinary sense.
+_NOT_A_STREET = frozenset("hard google flash thumb usb disk external network shared cloud zip pen tape backup boot".split())
+
+_MONTH = (r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|"
+          r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)")
+_DATE = (rf"(?:\d{{1,2}}[/.\-]\d{{1,2}}[/.\-]\d{{2,4}}|\d{{4}}[/.\-]\d{{1,2}}[/.\-]\d{{1,2}}"
+         rf"|{_MONTH}\.?[ \t]+\d{{1,2}}(?:st|nd|rd|th)?,?[ \t]+\d{{4}}"
+         rf"|\d{{1,2}}(?:st|nd|rd|th)?[ \t]+(?:of[ \t]+)?{_MONTH}\.?,?[ \t]+\d{{4}})")
+# A full date next to a birth word. A year alone ("born in 1990") is left to the `date` category.
+_DOB = re.compile(rf"(?i)\b(?:date of birth|d\.?o\.?b\.?|birth ?date|birthday|born)\b[^\n\d]{{0,20}}?({_DATE})(?!\d)")
+
+# An identifier named by the words before it ("student ID: A1234567"); the value must hold a digit.
+_CONTEXT_ID = re.compile(
+    r"(?i)\b(?:student|employee|staff|member(?:ship)?|patient|customer|passport|national|tax|insurance|policy|"
+    r"licen[cs]e|social security)[ \t]*(?:id(?:entification)?|no|number|num|#)(?<=\w)\b\.?[ \t]*(?:is\b|[:#=\-])?[ \t]*#?"
+    r"((?=[A-Z0-9\-]*\d)[A-Z0-9][A-Z0-9\-]{4,17})\b")
+
+# "+<country code> ..." with 8-15 digits. Presidio's phone recognizer parses eight regions only.
+_INTL_PHONE = re.compile(r"(?<![\w+])\+\d{1,3}(?:[ \t.\-]?\(?\d{1,4}\)?){2,6}(?!\d)")
+
+
+# Categories the rules detector reports (configs/taxonomy.yaml), listed so a zero is still a row.
+RULE_CATEGORIES = ("personal_url", "handle", "street_address", "date_of_birth", "account_id", "phone")
+
+
+def rule_matches(text: str) -> Iterable[tuple[int, int, str]]:
+    """Yields (start, end, entity) for the rule families above."""
+    for m in _PROFILE_URL.finditer(text):
+        account = m.group(m.lastindex).rstrip(".-")
+        if account.casefold() not in _SITE_PAGES:
+            yield m.start(), m.start(m.lastindex) + len(account), "PERSONAL_URL"
+    for pat in _HANDLE_PATTERNS:
+        for m in pat.finditer(text):
+            yield *m.span(1), "SOCIAL_HANDLE"
+    for m in _STREET.finditer(text):
+        if m.group(1).split()[-1].casefold() not in _NOT_A_STREET:
+            yield *m.span(), "STREET_ADDRESS"
+    for m in _DOB.finditer(text):
+        yield *m.span(1), "DATE_OF_BIRTH"
+    for m in _CONTEXT_ID.finditer(text):
+        yield *m.span(1), "CONTEXT_ID"
+    for m in _INTL_PHONE.finditer(text):
+        if 8 <= sum(c.isdigit() for c in m.group()) <= 15:
+            yield *m.span(), "INTL_PHONE"
 
 
 # ---------------------------------------------------------------- presidio
@@ -249,6 +339,11 @@ def detect(turns: pd.DataFrame, cfg: dict, taxonomy: dict, key: bytes) -> tuple[
             if role == "user":
                 for s, e, ent in selfid_matches(text[:max_chars]):
                     found[(row, s, e, "selfid", ent)] = 1.0
+
+    if cfg.get("rules", {}).get("enabled", True):
+        for row, text in enumerate(turns["text"]):
+            for s, e, ent in rule_matches(text[:max_chars]):
+                found[(row, s, e, "rules", ent)] = 1.0
 
     meta = turns[["dataset", "conversation_id", "turn_index", "role"]].to_numpy()
     texts = turns["text"].to_numpy()

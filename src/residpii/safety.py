@@ -60,6 +60,7 @@ class SafeSpan:
     is_dummy: bool
     role: str = "user"
     about_user: bool | None = None   # True when the detector knows the span describes the speaker
+    about: str | None = None         # llm detector only: one of llm.ABOUT
 
     @property
     def length(self) -> int:
@@ -84,6 +85,8 @@ SAFE_TEXT_COLUMNS = {
     "attribute", "level", "combination", "ci_kind",
     # What two halves of a user's conversations are matched on (linkage.MATCH_ON); never values.
     "match_on",
+    "keyword_task_type", "task_source",   # task labels from configs/taxonomy.yaml
+    "gold", "measure",                    # which labels a validation row was scored against; agreement measure
 }
 
 

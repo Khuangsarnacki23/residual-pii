@@ -1,0 +1,17 @@
+# The default design (5,000 WildChat conversations, one per user, user turns) with the Fireworks LLM
+# detector on every sampled user turn: direct identifiers as spans, quasi-identifiers and task type.
+#
+#   export FIREWORKS_API_KEY=...
+#   residpii run --config configs/fireworks_default.yaml --datasets wildchat
+extends: default.yaml
+run_name: fireworks_default
+
+llm:
+  enabled: true
+  backend: fireworks
+  model: accounts/fireworks/models/gpt-oss-120b
+  # This sends sampled user text to Fireworks. Switched on by Ethan on 2026-10-13;
+  # keep it on only while the dataset terms, your instructor/IRB and your partner allow it.
+  allow_hosted: true
+  sample_turns: null         # every sampled user turn (about 11,600; roughly $4 with gpt-oss-120b)
+  concurrency: 8

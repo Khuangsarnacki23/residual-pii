@@ -4,7 +4,8 @@ import pandas as pd
 from residpii import dedup
 from residpii.analysis import weighted_prevalence
 from residpii.config import REPO_ROOT, load_config, load_taxonomy
-from residpii.detect import is_dummy, secret_matches, selfid_matches, tag_tasks
+from residpii.analysis import exclusion_table, residual
+from residpii.detect import is_dummy, rule_matches, secret_matches, selfid_matches, tag_tasks
 from residpii.redactions import compile_patterns, discover, matches_configured
 from residpii.safety import assert_safe_table, keyed_hash
 from residpii.sampling import (NoUserProxy, _proportional_allocation, turn_bucket, user_activity,
@@ -235,3 +236,80 @@ def test_selfid_negatives():
 def test_selfid_dummy_names():
     assert is_dummy("SELF_NAME", "John Doe") and is_dummy("SELF_NAME", "DAN")
     assert not is_dummy("SELF_NAME", "Ada Lovelace")
+
+
+# ---------------------------------------------------------------- rules detector
+
+
+def _rules(text: str) -> list[tuple[str, str]]:
+    return [(text[s:e], ent) for s, e, ent in rule_matches(text)]
+
+
+def test_rules_positives():
+    assert _rules("my page: https://www.linkedin.com/in/ada-lovelace-1815/ thanks") == [
+        ("https://www.linkedin.com/in/ada-lovelace-1815", "PERSONAL_URL")]
+    assert _rules("see github.com/adalove.") == [("github.com/adalove", "PERSONAL_URL")]
+    assert [v for v, _ in _rules("x.com/adalove t.me/adalovelace tiktok.com/@ada.l reddit.com/u/ada_l")] == [
+        "x.com/adalove", "t.me/adalovelace", "tiktok.com/@ada.l", "reddit.com/u/ada_l"]
+    assert _rules("follow me on instagram @ada.lovelace or twitter: @ada_l") == [
+        ("@ada.lovelace", "SOCIAL_HANDLE"), ("@ada_l", "SOCIAL_HANDLE")]
+    assert _rules("my discord is adal#4521") == [("adal#4521", "SOCIAL_HANDLE")]
+    assert _rules("I live at 221B Baker Street, Flat 2.") == [("221B Baker Street, Flat 2", "STREET_ADDRESS")]
+    assert _rules("ship to 1600 N. Pennsylvania Ave.") == [("1600 N. Pennsylvania Ave.", "STREET_ADDRESS")]
+    assert [v for v, _ in _rules("DOB: 03/14/1990; born on March 5, 1990; my birthday is 5th of May 1991")] == [
+        "03/14/1990", "March 5, 1990", "5th of May 1991"]
+    assert _rules("student ID: B7720491, passport no. X98765432") == [
+        ("B7720491", "CONTEXT_ID"), ("X98765432", "CONTEXT_ID")]
+    assert _rules("call +61 491 570 006") == [("+61 491 570 006", "INTL_PHONE")]
+
+
+def test_rules_negatives():
+    for text in ["github.com/adalove/repo and https://github.com/features",      # a repo and a site page
+                 "max.com/foo and facebook.com/groups",
+                 "email ig ada@gmail.com",                                       # an email is not a handle
+                 "username\n@property\ndef f(self): ...",                         # decorator on the next line
+                 "@media (max-width: 600px)",                                    # no platform word nearby
+                 "a 2 TB Hard Drive, 3 Easy Way and 1 Google Drive",
+                 "born in 1990", "the report is due 03/14/2024",
+                 "student id is required", "employee number of staff",
+                 "1+2, +5, C++17 and +1"]:
+        assert _rules(text) == [], text
+
+
+def test_rules_dummy_values():
+    assert is_dummy("PERSONAL_URL", "linkedin.com/in/username") and is_dummy("SOCIAL_HANDLE", "@your_handle")
+    assert not is_dummy("PERSONAL_URL", "linkedin.com/in/ada-lovelace") and not is_dummy("SOCIAL_HANDLE", "@ada_l")
+
+
+def _span(detector, entity, start, end, score=1.0, turn=0):
+    return {"dataset": "d", "conversation_id": "c", "turn_index": turn, "role": "user", "start": start, "end": end,
+            "detector": detector, "entity": entity, "category": entity.lower(), "score": score,
+            "in_placeholder": False, "is_dummy": False}
+
+
+def test_overlapping_detections_are_counted_once():
+    spans = pd.DataFrame([
+        _span("rules", "PERSONAL_URL", 10, 40), _span("presidio", "URL", 10, 45, 0.6),       # rule refines the URL
+        _span("rules", "CONTEXT_ID", 60, 69), _span("presidio", "US_PASSPORT", 60, 69, 0.6),   # Presidio already has it
+        _span("rules", "INTL_PHONE", 80, 95), _span("presidio", "PHONE_NUMBER", 80, 95, 0.4),  # below threshold
+        _span("rules", "STREET_ADDRESS", 10, 30, turn=1), _span("presidio", "LOCATION", 15, 22, 0.85, turn=1),
+        _span("presidio", "LOCATION", 50, 56, 0.85, turn=1),                                   # elsewhere: untouched
+    ])
+    kept = residual(spans, 0.5)
+    assert sorted(zip(kept["detector"], kept["entity"])) == [
+        ("presidio", "LOCATION"), ("presidio", "US_PASSPORT"), ("rules", "INTL_PHONE"), ("rules", "PERSONAL_URL"),
+        ("rules", "STREET_ADDRESS")]
+    assert kept.loc[kept["entity"] == "LOCATION", "start"].tolist() == [50]
+    # No two kept spans share text, and every stored span has exactly one reason.
+    for _, g in kept.groupby("turn_index"):
+        iv = sorted(zip(g["start"], g["end"]))
+        assert all(a[1] <= b[0] for a, b in zip(iv, iv[1:]))
+    reasons = exclusion_table(spans, 0.5).set_index(["detector", "category"])
+    assert reasons.loc[("rules", "context_id"), "covered_by_other_detector"] == 1
+    assert reasons.loc[("presidio", "url"), "refined_by_rule"] == 1
+    assert reasons.loc[("presidio", "location"), ["refined_by_rule", "residual"]].tolist() == [1, 1]
+    assert reasons.loc[("presidio", "phone_number"), "below_threshold"] == 1
+    # At a threshold that admits Presidio's phone hit, Presidio gets the count instead of the rule.
+    low = residual(spans, 0.4)
+    assert ("presidio", "PHONE_NUMBER") in set(zip(low["detector"], low["entity"]))
+    assert "INTL_PHONE" not in set(low["entity"])

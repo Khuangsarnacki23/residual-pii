@@ -56,26 +56,6 @@ schema; a malformed response was retried once and otherwise recorded as a failur
 of 1,038 turns). Turns longer than 6,000 characters were truncated. Extracted
 values were stored only in the access-restricted directory.
 
-## Per-user profiles and uniqueness
-For each user we kept attributes about the user with confidence >= 0.6 and mapped
-them with fixed lookup tables (configs/coarsening.yaml) onto six dimensions: region, occupation
-group, age band, gender, education level and country. Values the tables do not cover were set to
-`unknown`. We used two coarsening levels (fine: state or region, 10-year age band, SOC minor group
-where available; coarse: census region or country, 20-year age band, SOC major group) and two
-variants (stated attributes only; stated plus inferred). When a user's conversations disagreed we
-took the majority value and treated ties as ambiguous.
-
-For every combination of one to 4 dimensions we computed the equivalence-class size k
-among users with a usable value for each dimension in the combination, and report the share of
-those users with k = 1 and k < 5 and the median k, with 200-replicate bootstrap intervals that
-resample users. We also report the share of all sampled users who are unique on at least one
-combination, overall and by number of conversations.
-
-Uniqueness is measured within the sample and therefore overstates uniqueness in the population of
-all users; we report it at several sample sizes to show how it falls as the sample grows (see Rocher,
-Hendrickx & de Montjoye, 2019, for the population-level argument). Cells based on fewer than
-10 users are suppressed. We did not attempt to identify any user.
-
 ## Limitations (summary)
 Results are detector-reported prevalence and have not yet been validated against human labels, so
 they mix true and false positives. Presidio was also the tool used to redact WildChat, so WildChat's

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
+import shutil
 import sys
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -20,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 import pandas as pd
 
-from . import label, llm, report
+from . import analysis, label, llm, report
 from .safety import keyed_hash, suppress_small_cells
 
 ATTR_KEY = ["dataset", "conversation_id", "turn_index", "attribute_type", "value_hmac"]
@@ -33,6 +35,13 @@ ANSWERS = {
     "missed": ("no", "yes"),             # did the model miss something about the user in this turn?
 }
 TOPICS = ("health", "sexual_orientation", "religion", "politics", "finances", "criminal_record", "immigration")
+# Label files written here carry one column more than label.LABEL_COLUMNS: "yes" on a span the
+# annotator added after asking to see what the detectors found in that message. Spans without it were
+# labeled blind, so recall can be reported on those alone.
+AFTER_REVEAL = label.AFTER_REVEAL
+ANNOTATOR = re.compile(r"[a-z0-9_-]{1,20}")
+MAX_ATTR_VALUE = 100
+BATCH_COLUMNS = [*label.LABEL_COLUMNS, AFTER_REVEAL]
 MAX_NOTES = 2000
 MAX_CONTEXT_CHARS = 1500
 MAX_BODY = 2 * 2**20
@@ -68,8 +77,10 @@ def review_summary(rev: pd.DataFrame, min_cell: int) -> pd.DataFrame:
 class Review:
     """State behind the page. Every method returns plain JSON-ready data."""
 
-    def __init__(self, pipe, n_attrs: int = 20):
-        self.pipe, self.n_attrs = pipe, n_attrs
+    def __init__(self, pipe, n_attrs: int = 20, annotator: str = ""):
+        self.pipe, self.n_attrs, self.annotator = pipe, n_attrs, annotator.strip().casefold()
+        if self.annotator and not ANNOTATOR.fullmatch(self.annotator):
+            raise ValueError("annotator must be 1-20 letters, digits, - or _")
         self.restricted = Path(pipe.paths.restricted)
         self.dir = self.restricted / "labels"
         self.categories = list(pipe.taxonomy["categories"])
@@ -93,7 +104,8 @@ class Review:
 
     def overview(self) -> dict:
         rev = self._review()
-        return {"run": self.pipe.cfg["run_name"], "categories": self.categories,
+        return {"run": self.pipe.cfg["run_name"], "categories": self.categories, "annotator": self.annotator,
+                "attribute_types": list(llm.ATTRIBUTE_TYPES), "attribute_evidence": list(label.ATTR_EVIDENCE),
                 "about_labels": list(label.ABOUT_LABELS), "llm_about": list(llm.ABOUT), "topics": list(TOPICS),
                 "attrs": None if rev is None else {"n": len(rev), "done": int(self._attr_done(rev).sum())},
                 "batches": self.batches()}
@@ -114,7 +126,7 @@ class Review:
         return a.drop_duplicates(ATTR_KEY).reset_index(drop=True)
 
     def _sample_attrs(self, attrs: pd.DataFrame) -> pd.DataFrame:
-        """Half the sample is about the user (what profiles are built from), half is everything else."""
+        """Half the sample is about the user, half is everything else."""
         rng = np.random.default_rng(self.pipe.cfg["seed"])
         n = min(self.n_attrs, len(attrs))
         user, other = np.flatnonzero(attrs["about"] == "user"), np.flatnonzero(attrs["about"] != "user")
@@ -198,11 +210,23 @@ class Review:
         return {"done": int(self._attr_done(rev).sum()), "tally": self._tally(rev)}
 
     # ------------------------------------------------------------------ check 2: span labels
+    def _base_batches(self) -> dict[str, Path]:
+        """Batches as exported. An annotator's own copy is `<batch>__<annotator>.csv` beside it."""
+        return {p.name: p for p in sorted(self.dir.glob("batch_*.csv")) if "__" not in p.name}
+
     def _batch_path(self, name: str) -> Path:
-        paths = {p.name: p for p in self.dir.glob("batch_*.csv")}
+        """The file this session reads and writes for a batch: the batch itself, or with --annotator
+        that annotator's copy of it (made on first use), so two people never write the same file."""
+        paths = self._base_batches()
         if name not in paths:                        # only files this tool wrote, never a caller's path
             raise ValueError("unknown batch")
-        return paths[name]
+        if not self.annotator:
+            return paths[name]
+        mine = paths[name].with_name(f"{paths[name].stem}__{self.annotator}.csv")
+        if not mine.exists():
+            shutil.copyfile(paths[name], mine)
+            os.chmod(mine, 0o600)
+        return mine
 
     @staticmethod
     def _parse_batch(df: pd.DataFrame) -> list[dict]:
@@ -224,11 +248,12 @@ class Review:
                     while needle and (pos := text.find(needle, pos)) != -1:
                         found.append((pos, pos + len(needle)))
                         pos += len(needle)
-                spans += [{"start": s, "end": e, "pii_type": typ, "about": r.about.strip().casefold()}
+                spans += [{"start": s, "end": e, "pii_type": typ, "about": r.about.strip().casefold(),
+                           AFTER_REVEAL: getattr(r, AFTER_REVEAL, "").strip().casefold() == "yes"}
                           for s, e in found if 0 <= s < e <= len(text)]
             none = not spans and (g["pii_type"].str.strip().str.casefold() == label.NONE).any()
             items.append({"item_id": item_id, "dataset": first["dataset"], "conversation_id": first["conversation_id"],
-                          "turn_index": first["turn_index"], "text": text, "spans": spans, "none": bool(none),
+                          "turn_index": first["turn_index"], "text": text, "spans": spans, "attrs": [], "none": bool(none),
                           "sensitive_topic": max(g["sensitive_topic"], key=len), "notes": max(g["notes"], key=len)})
         return items
 
@@ -239,11 +264,12 @@ class Review:
             ids = [it[c] for c in label.ID_COLUMNS]
             tail = [it["sensitive_topic"], it["notes"]]
             if it["spans"]:
-                rows += [[*ids, it["text"][s["start"]:s["end"]], s["start"], s["end"], s["pii_type"], s["about"], *tail]
-                         for s in it["spans"]]
+                rows += [[*ids, it["text"][s["start"]:s["end"]], s["start"], s["end"], s["pii_type"], s["about"], *tail,
+                          "yes" if s.get(AFTER_REVEAL) else ""] for s in it["spans"]]
             else:
-                rows.append([*ids, "", "", "", label.NONE if it["none"] else "", "", *tail])
-        return pd.DataFrame(rows, columns=label.LABEL_COLUMNS)
+                # A message with attribute labels only is labeled, with no spans: "none" at span level.
+                rows.append([*ids, "", "", "", label.NONE if it["none"] or it["attrs"] else "", "", *tail, ""])
+        return pd.DataFrame(rows, columns=BATCH_COLUMNS)
 
     def _load_batch(self, name: str) -> list[dict]:
         if self._batch is None or self._batch[0] != name:
@@ -251,18 +277,37 @@ class Review:
             missing = [c for c in label.LABEL_COLUMNS if c not in df.columns]
             if missing:
                 raise ValueError("batch file is missing label columns")
-            self._batch = (name, self._parse_batch(df))
+            items = self._parse_batch(df)
+            attrs = label.read_attribute_labels(self._batch_path(name))
+            by_item = {k: g for k, g in attrs.groupby("item_id")}
+            for it in items:
+                g = by_item.get(it["item_id"])
+                if g is not None:
+                    it["attrs"] = [{"type": r.attribute_type, "evidence": r.evidence, "about": r.about, "value": r.value,
+                                    AFTER_REVEAL: getattr(r, AFTER_REVEAL, "") == "yes"} for r in g.itertuples(index=False)]
+                    it["none"] = False
+            self._batch = (name, items)
         return self._batch[1]
 
+    @staticmethod
+    def _attr_frame(items: list[dict]) -> pd.DataFrame:
+        rows = [[it["item_id"], it["dataset"], it["conversation_id"], it["turn_index"], a["type"], a["evidence"],
+                 a["about"], a["value"], "yes" if a.get(AFTER_REVEAL) else ""] for it in items for a in it["attrs"]]
+        return pd.DataFrame(rows, columns=[*label.ATTR_LABEL_COLUMNS, AFTER_REVEAL])
+
+    @staticmethod
+    def _is_done(item: dict) -> bool:
+        return bool(item["spans"]) or bool(item["attrs"]) or item["none"]
+
     def batches(self) -> list[dict]:
-        out = []
-        for p in sorted(self.dir.glob("batch_*.csv")):
+        out, current = [], self._batch
+        for name in self._base_batches():
             try:
-                items = self._load_batch(p.name) if self._batch and self._batch[0] == p.name else \
-                    self._parse_batch(pd.read_csv(p, dtype=str, keep_default_na=False))
+                items = self._load_batch(name)
             except (ValueError, KeyError, AttributeError):
                 continue
-            out.append({"name": p.name, "n": len(items), "done": sum(bool(i["spans"]) or i["none"] for i in items)})
+            out.append({"name": name, "n": len(items), "done": sum(map(self._is_done, items))})
+        self._batch = current
         return out
 
     def new_batch(self, n: int) -> dict:
@@ -271,7 +316,46 @@ class Review:
         return {"name": self.pipe.label_export(n).name}
 
     def batch_items(self, name: str) -> dict:
-        return {"name": name, "items": self._load_batch(name)}
+        items = self._load_batch(name)
+        return {"name": name, "items": items, "suggestions": self._suggestions(items),
+                "attr_suggestions": self._attr_suggestions(items)}
+
+    def _attr_suggestions(self, items: list[dict]) -> dict:
+        """item_id -> attributes the LLM extracted from that message, in the annotator's vocabulary."""
+        attrs = self._llm_attrs()
+        if attrs is None or not items:
+            return {}
+        keys = pd.DataFrame([{"item_id": i["item_id"], "dataset": i["dataset"], "conversation_id": i["conversation_id"],
+                              "turn_index": int(i["turn_index"])} for i in items])
+        m = attrs.merge(keys, on=["dataset", "conversation_id", "turn_index"])
+        m = m.assign(about=m["about"].map(label.HUMAN_ABOUT_FROM_LLM)).drop_duplicates(["item_id", "attribute_type", "about"])
+        return {k: [{"type": r.attribute_type, "evidence": r.evidence, "about": r.about, "value": str(r.value)}
+                    for r in g.itertuples(index=False)] for k, g in m.groupby("item_id")}
+
+    def _suggestions(self, items: list[dict]) -> dict:
+        """item_id -> what the detectors found in that message: [{start, end, pii_type, detectors}].
+        The page keeps these hidden until the annotator has labeled the message and asks for them."""
+        keys = pd.DataFrame([{"item_id": i["item_id"], "dataset": i["dataset"], "conversation_id": i["conversation_id"],
+                              "turn_index": int(i["turn_index"]), "n_chars": len(i["text"])} for i in items])
+        found = []
+        for ds in (keys["dataset"].unique() if len(keys) else []):
+            path = self.restricted / f"spans_{ds}.parquet"
+            if path.exists():
+                found.append(analysis.residual(pd.read_parquet(path), self.pipe.cfg["presidio"]["score_threshold"]))
+            path = self.restricted / f"llm_spans_{ds}.parquet"
+            if path.exists():
+                s = pd.read_parquet(path)
+                found.append(s[~s["in_placeholder"] & ~s["is_dummy"]])
+        found = [f[f["role"] == "user"] for f in found if len(f)]
+        if not found:
+            return {}
+        s = pd.concat(found, ignore_index=True).merge(keys, on=["dataset", "conversation_id", "turn_index"])
+        s = s[(s["end"] <= s["n_chars"]) & s["category"].isin(self.categories)]
+        out: dict = {}
+        for (item_id, start, end, cat), g in s.groupby(["item_id", "start", "end", "category"]):
+            out.setdefault(item_id, []).append({"start": int(start), "end": int(end), "pii_type": cat,
+                                                "detectors": sorted(set(g["detector"]))})
+        return out
 
     def save_item(self, name: str, item_id: str, data: dict) -> dict:
         items = self._load_batch(name)
@@ -284,15 +368,25 @@ class Review:
             if not 0 <= start < end <= len(item["text"]) or typ not in self.categories \
                     or about not in ("", *label.ABOUT_LABELS):
                 raise ValueError("invalid span")
-            spans.add((start, end, typ, about))
+            spans.add((start, end, typ, about, bool(s.get(AFTER_REVEAL))))
+        attrs = {}
+        for a in data.get("attrs") or []:
+            typ, ev, about = str(a.get("type")), str(a.get("evidence")), str(a.get("about", ""))
+            if typ not in llm.ATTRIBUTE_TYPES or ev not in label.ATTR_EVIDENCE or about not in label.ABOUT_LABELS:
+                raise ValueError("invalid attribute")
+            attrs.setdefault((typ, about), {"type": typ, "evidence": ev, "about": about,
+                                            "value": str(a.get("value", ""))[:MAX_ATTR_VALUE],
+                                            AFTER_REVEAL: bool(a.get(AFTER_REVEAL))})
         topic = str(data.get("sensitive_topic", ""))
         if topic not in ("", *TOPICS):
             raise ValueError("invalid sensitive topic")
-        item.update(spans=[dict(zip(("start", "end", "pii_type", "about"), s)) for s in sorted(spans)],
-                    none=bool(data.get("none")) and not spans, sensitive_topic=topic,
-                    notes=str(data.get("notes", ""))[:MAX_NOTES])
-        _write_private(self._batch_frame(items), self._batch_path(name))
-        return {"done": sum(bool(i["spans"]) or i["none"] for i in items)}
+        item.update(spans=[dict(zip(("start", "end", "pii_type", "about", AFTER_REVEAL), s)) for s in sorted(spans)],
+                    attrs=list(attrs.values()), none=bool(data.get("none")) and not spans and not attrs,
+                    sensitive_topic=topic, notes=str(data.get("notes", ""))[:MAX_NOTES])
+        path = self._batch_path(name)
+        _write_private(self._batch_frame(items), path)
+        _write_private(self._attr_frame(items), label.attrs_path(path))
+        return {"done": sum(map(self._is_done, items))}
 
     def score(self, name: str) -> dict:
         """Detector precision/recall against the batch. The result is the aggregate table itself."""
@@ -383,8 +477,8 @@ def make_server(review: Review, port: int = 0) -> tuple[HTTPServer, str]:
     return server, f"http://127.0.0.1:{server.server_port}/?t={token}"
 
 
-def serve(pipe, port: int = 0, n_attrs: int = 20, open_browser: bool = True) -> None:
-    server, url = make_server(Review(pipe, n_attrs), port)
+def serve(pipe, port: int = 0, n_attrs: int = 20, open_browser: bool = True, annotator: str = "") -> None:
+    server, url = make_server(Review(pipe, n_attrs, annotator), port)
     print(f"Review page (this computer only):\n  {url}\nIt shows raw text; do not share your screen. "
           "Press Ctrl-C here when you are done. Your answers are saved as you go.", file=sys.stderr)
     if open_browser:

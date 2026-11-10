@@ -60,6 +60,7 @@ class Pipeline:
         self._activity: dict[str, pd.DataFrame] = {}
         self.llm_enabled = bool(cfg.get("llm", {}).get("enabled"))
         self._llm_backend = llm_backend          # injected by tests; otherwise built from the config
+        self._llm_unlocated = 0                  # LLM quotes that could not be found in their turn
         if self.llm_enabled and llm_backend is None:
             llm.check_backend_allowed(cfg["llm"])   # fail before any work if a hosted backend is not allowed
 
@@ -142,7 +143,8 @@ class Pipeline:
     def detect(self, name: str, turns: pd.DataFrame, s_key: str):
         analysis_only = ("score_threshold", "sensitivity_thresholds")
         pcfg = {k: v for k, v in self.cfg["presidio"].items() if k not in analysis_only}
-        d_key = stable_hash([s_key, pcfg, self.cfg.get("secrets"), self.cfg.get("selfid"), self.cfg["placeholders"],
+        d_key = stable_hash([s_key, pcfg, self.cfg.get("secrets"), self.cfg.get("selfid"), self.cfg.get("rules"),
+                             self.cfg["placeholders"],
                              self.taxonomy, PIPELINE_VERSION])
         stats_path = self.paths.work / f"turnstats_{name}.parquet"
         spans, _ = cached(self.paths.restricted / f"spans_{name}.parquet", d_key,
@@ -165,33 +167,68 @@ class Pipeline:
             self._llm_backend = llm.make_backend(self.cfg["llm"])
         return self._llm_backend
 
-    def llm_extract(self, name: str, smp: pd.DataFrame, turns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """LLM quasi-identifier extraction on a subsample of user turns. Values stay in restricted/."""
+    def llm_extract(self, name: str, smp: pd.DataFrame,
+                    turns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """LLM extraction on a subsample of user turns: quasi-identifier attributes and, with
+        llm.extract_spans, direct identifiers as located spans. Values stay in restricted/."""
         lcfg = self.cfg["llm"]
         selected = llm.select_turns(turns, smp, lcfg, self.seed(name), whole_users=self.mode == "user_level")
-        attrs, turn_log = llm.extract(selected, lcfg, llm.load_prompt(self.cfg), self.llm_backend(), self.key,
-                                      self.paths.restricted / f"llm_cache_{name}.jsonl")
+        attrs, turn_log, quotes = llm.extract_with_spans(selected, lcfg, llm.load_prompt(self.cfg), self.llm_backend(),
+                                                         self.key, self.paths.restricted / f"llm_cache_{name}.jsonl")
+        llm_spans, unlocated = llm.locate_spans(quotes, selected, self.cfg, self.taxonomy, self.key)
+        self._llm_unlocated += unlocated
         attrs.to_parquet(self.paths.restricted / f"llm_attrs_{name}.parquet", index=False)
+        llm_spans.to_parquet(self.paths.restricted / f"llm_spans_{name}.parquet", index=False)
         turn_log.to_parquet(self.paths.work / f"llm_turns_{name}.parquet", index=False)
         log(f"[{name}] llm: {len(turn_log):,} turns, {int((turn_log['status'] != 'ok').sum()):,} failures, "
-            f"{len(attrs):,} attributes")
-        return attrs, turn_log
+            f"{len(attrs):,} attributes, {len(llm_spans):,} located spans ({unlocated:,} quotes not found)")
+        return attrs, turn_log, llm_spans
 
-    def identifiability(self, sample: pd.DataFrame, attrs: pd.DataFrame, turn_log: pd.DataFrame,
-                        spans: pd.DataFrame | None = None) -> list[str]:
-        """LLM aggregates -> per-user profiles (restricted) -> uniqueness tables and figure."""
+    def llm_task_types(self, tasks: pd.DataFrame, turn_log: pd.DataFrame) -> pd.DataFrame:
+        """Where the LLM labeled a conversation's task, that label replaces the keyword one. Writes how
+        the two agree (task_type_agreement.csv) and records how many conversations each source covers."""
+        key = ["dataset", "conversation_id"]
+        m = tasks.merge(llm.conversation_tasks(turn_log).rename(columns={"task_type": "llm"}), on=key, how="left")
+        both = m[m["llm"].notna()]
+        if both.empty:
+            return tasks
+        agree = (both.groupby(["dataset", "task_type", "llm"]).size().rename("n_conversations").reset_index()
+                 .rename(columns={"task_type": "keyword_task_type", "llm": "task_type"}))
+        report.write_table(agree, self.paths.tables, "task_type_agreement")
+        self.manifest["task_types"] = {"from_llm": int(m["llm"].notna().sum()), "from_keywords": int(m["llm"].isna().sum()),
+                                       "keyword_llm_agreement": float((both["task_type"] == both["llm"]).mean())}
+        m["task_type"] = m["llm"].fillna(m["task_type"])
+        m["is_story_roleplay"] = m["task_type"] == "story_roleplay"
+        return m.drop(columns="llm")
+
+    def llm_tables(self, sample: pd.DataFrame, attrs: pd.DataFrame, turn_log: pd.DataFrame,
+                   llm_spans: pd.DataFrame, spans: pd.DataFrame) -> list[str]:
+        """Aggregate tables for the LLM detector: attribute prevalence, run statistics and, with
+        llm.extract_spans, direct-identifier prevalence and agreement with the other detectors."""
         t, lcfg, backend = self.paths.tables, self.cfg["llm"], self.llm_backend()
         report.write_table(llm.attribute_prevalence(attrs, turn_log, sample, self.min_cell), t,
                            "llm_attribute_prevalence")
-        stats = llm.run_stats(turn_log, backend, lcfg)
+        if lcfg.get("extract_spans"):
+            report.write_table(llm.span_prevalence(llm_spans, turn_log, sample, self.min_cell), t,
+                               "llm_span_prevalence")
+            other = analysis.residual(spans, self.cfg["presidio"]["score_threshold"])
+            report.write_table(llm.detector_agreement(llm_spans, other, turn_log, int(lcfg["max_turn_chars"])), t,
+                               "llm_detector_agreement")
+        stats = llm.run_stats(turn_log, backend, lcfg).assign(quotes_not_found=self._llm_unlocated)
         report.write_table(stats, t, "llm_run_stats")
         self.manifest["llm"] = {"backend": backend.name, "model": backend.model,
                                 "hosted": backend.name in llm.HOSTED_BACKENDS,
                                 "prompt_version": lcfg["prompt_version"],
+                                "extract_spans": bool(lcfg.get("extract_spans")),
                                 "prompt_sha": llm.load_prompt(self.cfg).sha,
                                 "turns_processed": int(stats["turns_processed"].sum()),
                                 "failures": int(stats["failures"].sum())}
+        return self.per_user(sample, attrs, turn_log, spans)
 
+    def per_user(self, sample: pd.DataFrame, attrs: pd.DataFrame, turn_log: pd.DataFrame,
+                 spans: pd.DataFrame | None = None) -> list[str]:
+        """Per-user profiles (restricted) -> accumulation, uniqueness and linkage tables and a figure."""
+        t, lcfg = self.paths.tables, self.cfg["llm"]
         # Profiles need a user to attach to; datasets without a user proxy stop at the tables above.
         with_proxy = sample.groupby("dataset")["user_key"].agg(lambda s: s.notna().any())
         keep = [ds for ds in turn_log["dataset"].unique() if with_proxy.get(ds, False)]
@@ -321,6 +358,12 @@ class Pipeline:
             sp = analysis.residual(pd.read_parquet(path), self.cfg["presidio"]["score_threshold"])
             sp = sp[sp["role"] == "user"].merge(it.assign(n_chars=it["text"].str.len())[[*label.TURN, "n_chars"]],
                                                 on=label.TURN)
+            llm_path = self.paths.restricted / f"llm_spans_{ds}.parquet"
+            if llm_path.exists():                            # the LLM's quoted identifiers are a detector too
+                extra = pd.read_parquet(llm_path)
+                extra = extra[~extra["in_placeholder"] & ~extra["is_dummy"]].merge(
+                    it.assign(n_chars=it["text"].str.len())[[*label.TURN, "n_chars"]], on=label.TURN)
+                sp = pd.concat([sp, extra], ignore_index=True)
             pred.append(sp[sp["end"] <= sp["n_chars"]])      # only spans inside the exported text
             if second_annotator == "llm":
                 # The LLM annotates exactly the labeled turns (the hosted opt-in rule applies as usual).
@@ -331,7 +374,20 @@ class Pipeline:
             elif (self.paths.restricted / f"llm_attrs_{ds}.parquet").exists():
                 attrs.append(pd.read_parquet(self.paths.restricted / f"llm_attrs_{ds}.parquet"))
                 turn_logs.append(pd.read_parquet(self.paths.work / f"llm_turns_{ds}.parquet"))
-        out = label.score_detectors(pd.concat(pred, ignore_index=True), gold, min_overlap)
+        pred_df = pd.concat(pred, ignore_index=True)
+        out = label.score_detectors(pred_df, gold, min_overlap).assign(gold="all")
+        if not gold["blind"].all():
+            # Labels added after the annotator saw the detectors' output cannot count toward recall:
+            # the detectors found those by construction. Precision is read from the "all" rows.
+            blind = label.score_detectors(pred_df, gold[gold["blind"]], min_overlap).assign(gold="blind_only")
+            out = pd.concat([out, blind], ignore_index=True)
+        gold_attrs = label.read_attribute_labels(labels_path)
+        if attrs and len(gold_attrs):
+            done = pd.concat(turn_logs, ignore_index=True)
+            done = done[done["status"] == "ok"][label.TURN].merge(items[label.TURN], on=label.TURN)
+            scored = label.score_attributes(gold_attrs, pd.concat(attrs, ignore_index=True), done)
+            scored.insert(0, "n_labeled_turns", len(done))
+            report.write_table(scored, self.paths.tables, "attribute_validation")
         if attrs:
             out = pd.concat([out, label.about_agreement(labels, gold, pd.concat(attrs, ignore_index=True),
                                                         pd.concat(turn_logs, ignore_index=True), min_overlap)],
@@ -340,9 +396,17 @@ class Pipeline:
         report.write_table(out, self.paths.tables, "detector_validation")
         return out
 
+    def label_agreement(self, path_a: str | Path, path_b: str | Path) -> pd.DataFrame:
+        """Two annotators' files for the same batch -> tables/annotator_agreement.csv."""
+        out = label.annotator_agreement(label.read_labels(path_a), label.read_labels(path_b),
+                                        label.read_attribute_labels(path_a), label.read_attribute_labels(path_b),
+                                        list(self.taxonomy["categories"]), float(self.cfg["label"]["match_min_overlap"]))
+        report.write_table(out, self.paths.tables, "annotator_agreement")
+        return out
+
     # ------------------------------------------------------------------ end to end
     def run(self, do_dedup: bool = True) -> dict:
-        samples, spans, stats, tasks, turns_all, llm_attrs, llm_logs = [], [], [], [], [], [], []
+        samples, spans, stats, tasks, turns_all, llm_attrs, llm_logs, llm_spans = [], [], [], [], [], [], [], []
         for name in self.enabled():
             try:
                 smp, turns, s_key = self.sample(name)
@@ -357,8 +421,8 @@ class Pipeline:
             sp, st, tk = self.detect(name, turns, s_key)
             samples.append(smp), spans.append(sp), stats.append(st), tasks.append(tk), turns_all.append(turns)
             if self.llm_enabled:
-                attrs, turn_log = self.llm_extract(name, smp, turns)
-                llm_attrs.append(attrs), llm_logs.append(turn_log)
+                attrs, turn_log, located = self.llm_extract(name, smp, turns)
+                llm_attrs.append(attrs), llm_logs.append(turn_log), llm_spans.append(located)
         if not samples:
             raise RuntimeError("No dataset could be loaded.")
         sample = pd.concat(samples, ignore_index=True)
@@ -379,8 +443,12 @@ class Pipeline:
         spans_df = spans_df[spans_df["role"] == "user"].reset_index(drop=True)
         stats_df = stats_df[stats_df["role"] == "user"].reset_index(drop=True)
         also = (("selfid", "name"),) if self.cfg.get("selfid", {}).get("enabled", True) else ()
+        if self.cfg.get("rules", {}).get("enabled", True):
+            also += tuple(("rules", c) for c in detect.RULE_CATEGORIES)
         conv = analysis.conversation_indicators(sample, spans_df, self.taxonomy, thr, also_report=also)
         conv = conv.merge(sample[["dataset", "conversation_id", "weight", "stratum"]], on=["dataset", "conversation_id"])
+        if llm_logs:
+            tasks_df = self.llm_task_types(tasks_df, pd.concat(llm_logs, ignore_index=True))
         conv = conv.merge(tasks_df, on=["dataset", "conversation_id"], how="left")
         conv["is_story_roleplay"] = conv["is_story_roleplay"].fillna(False).astype(bool)
         conv["task_type"] = conv["task_type"].fillna(self.taxonomy["default_task_type"])
@@ -395,8 +463,9 @@ class Pipeline:
 
         extra_figures = []
         if llm_logs:
-            extra_figures = self.identifiability(sample, pd.concat(llm_attrs, ignore_index=True),
-                                                 pd.concat(llm_logs, ignore_index=True), spans_df)
+            extra_figures = self.llm_tables(sample, pd.concat(llm_attrs, ignore_index=True),
+                                            pd.concat(llm_logs, ignore_index=True),
+                                            pd.concat(llm_spans, ignore_index=True), spans_df)
         self.analyze(conv, sample, spans_df, stats_df, extra_figures)
         return self.manifest
 

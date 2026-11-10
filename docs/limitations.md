@@ -2,8 +2,7 @@
 
 ## Current scope
 - **Rule-based detectors and spaCy NER have run on real data; the LLM layer has not.** The LLM
-  detector, profiles and uniqueness analysis are implemented and tested with a fake backend only.
-  No number from them exists yet.
+  detector is implemented and tested with a fake backend only. No number from it exists yet.
 - **No human validation yet.** All numbers are *detector-reported* prevalence: they mix true and
   false positives. Precision, recall and F1 are unknown until a batch is labeled
   (`residpii label-export` / `label-score`). State this prominently.
@@ -27,6 +26,17 @@
   and "I'm X" with a capitalized name of up to three tokens. It misses lower-case names, other
   phrasings and other languages, and it cannot tell a real name from a role-play persona.
 
+- **`rules` patterns are untested on real data.** They were written against made-up examples and
+  have no measured precision. Known weak spots: a year followed by a street name ("2008 Wall
+  Street"), public figures' birth dates and profile links, IDs in code or sample data, and street
+  suffixes outside the US/UK. Street addresses in other formats and handles without a platform word
+  nearby are missed.
+- **Counting once changes Presidio's own counts slightly.** A Presidio URL, date, location or name
+  that overlaps a `rules` span is dropped in its favour, and a `rules` span that overlaps a specific
+  Presidio, `secrets` or `selfid` detection is dropped. Both are counted in
+  `excluded_detections.csv`. The rule is applied after the score threshold, so an international
+  phone number that Presidio scored below the threshold is counted under `rules`.
+
 ## Fictional names
 Story/role-play prompts produce many fictional names. We report results with and without them,
 but the task tagger is heuristic, and fictional names also appear in other task types. Public
@@ -44,7 +54,7 @@ figures are not separated from private individuals.
 - **A `hashed_ip` is not a person.** One address can be many people (households, campuses,
   carrier-grade NAT, VPN exits) and one person has many addresses (home, work, mobile, dynamic
   reassignment). Shared addresses merge strangers into one "user", which produces conflicting
-  attributes and can make a profile look more or less unique than any real person. Split users
+  attributes. Split users
   hide accumulation across conversations. Both errors are unmeasured.
 - **Heavy users are capped.** Users above `max_conversations_per_user` (default 50) are likely
   shared or NAT addresses; a random subset of their conversations is kept. In the full English
@@ -61,15 +71,19 @@ figures are not separated from private individuals.
   For Arena only model A's replies are read.
 
 ## LLM extraction
+- **Quoted spans depend on the model copying text exactly.** A quote that is not in the turn
+  verbatim is discarded (`quotes_not_found` in `llm_run_stats.csv`), which loses real detections. A
+  quote is located at every exact occurrence in the turn, so a short name can also match the same
+  string used in another sense. LLM spans are reported in their own tables and are not part of
+  `prevalence.csv`, because the LLM may run on a subsample of turns.
 - **Extraction errors.** The model misses attributes, misreads who they are about (the user, a
   third party, a fictional persona the user wants text for), and can output attributes that are
   not in the text. Small, cheap models will be noticeably worse at this than large ones.
 - **Inferred attributes are guesses.** "Inferred" covers anything from a near-certain reading to a
-  stereotype (guessing gender from topic, nationality from spelling). The `stated_only` variant is
-  the conservative result; `stated_plus_inferred` is an upper bound on what a motivated reader
-  might assume, right or wrong. A wrong inference still splits users into smaller classes, so it
-  inflates measured uniqueness.
-- **Confidence is uncalibrated.** `llm.min_confidence` is a threshold on the model's own number.
+  stereotype (guessing gender from topic, nationality from spelling). Stated attributes are the
+  conservative result; stated plus inferred is an upper bound on what a motivated reader might
+  assume, right or wrong.
+- **Confidence is uncalibrated**, and no confidence threshold is applied to the reported counts.
 - **Strict parsing drops whole responses.** One bad field fails the turn after a single retry.
   Report the failure rate from `llm_run_stats.csv`; failures bias attribute counts downward.
 - **Truncation.** Turns beyond `llm.max_turn_chars` are cut, and only the immediately preceding
@@ -81,62 +95,9 @@ figures are not separated from private individuals.
   the instructor/IRB and both partners to allow it, and it depends on the provider's retention
   terms. State the provider and model in the paper.
 - **Model dependence.** Results depend on the model. A larger model would likely extract and infer
-  more, raising measured uniqueness. Numbers from different models are not comparable.
-- **Subsampling.** With `llm.sample_turns` set (the spend cap), only some users are processed; the
-  uniqueness sample is then smaller than the Presidio sample.
-
-## Profiles and coarsening
-- **Lookup tables are small and US/English-centred.** Cities, regions and occupations outside
-  them become `unknown` and drop out, which *under*states uniqueness for users elsewhere.
-- **Occupation groups** come from the LLM's SOC code when valid, otherwise from a keyword map, and
-  fall back to the major group when no minor group is available, so they mix granularities.
-- **Schools are mapped to an education level** assuming current attendance.
-- **Majority vote hides change.** A user who moved or changed jobs looks like a conflict, and
-  ties become `ambiguous` and drop out.
-- **`other` is not used.** Free-text attributes of that type cannot be matched across users.
-
-## Uniqueness
-- **Within-sample uniqueness overstates population uniqueness.** A user unique among 2,000 sampled
-  users is often not unique among all users of the service, let alone the general population. The
-  share falls as the sample grows; `uniqueness_summary.csv` shows this at several sample sizes. Do
-  not report the within-sample share as "X% of users are identifiable". For the population-level
-  argument and a way to estimate it, see Rocher, Hendrickx & de Montjoye (2019).
-- **The population estimate is a model, and a simple one.** `uniqueness_population.csv` assumes the
-  dimensions are independent of each other (region and country apart). Where attributes go together
-  in reality (a job that is common in one country), a match is more likely than the model says and
-  the estimate is too high; where they rarely go together it is too low. A value seen once in the
-  sample is given half a pseudo-user (`uniqueness.population_prior`), and the result moves with that
-  choice. The check rows compare the model with observed uniqueness at the sample sizes we have,
-  which says the model fits there, not that it extrapolates. Its bootstrap interval is skewed
-  upward, because a resample holds fewer distinct users than the sample. "Population" means users
-  of this dataset with enough conversations to be sampled, not the public.
-- **One profile definition, with judgment calls in it.** Six dimensions are generalised with lookup
-  tables (state or region, country, SOC occupation group, 10-year age band, gender, education
-  level); a value the tables miss is dropped, which understates what users revealed. Five are kept
-  as stated because there is no table for them (employer type, school, relationship status,
-  nationality, native language); two users who word the same fact differently look different on
-  these, which overstates uniqueness. Employer type and school are free text and are the most
-  exposed to this. Earlier versions of the analysis reported a stricter six-attribute profile and a
-  looser as-written one; on 600 users they gave 3-6% and 8-11% unique among all eligible users, and
-  the current definition should be read as sitting inside that range, not as exact.
-- **Unique is not identified.** k = 1 means no other sampled user shares the combination. Turning
-  that into an identity needs outside data, which we never use.
-- **Linkage is tested inside the dataset only.** `linkage.csv` splits each user's conversations in
-  two and asks whether one half finds the other. That shows the mechanism of a linkage attack, not a
-  re-identification: an attacker with outside data would hold different attributes, possibly more.
-  The matching rule is simple (shared values, weighted by rarity; a contradiction is not penalised),
-  so a better matcher would link more. A user who repeats the same prompt in several conversations
-  links easily, which is real but says little about what they revealed. The ground truth is the
-  `hashed_ip` proxy, with the errors described above.
-- **Direct identifiers here are noisy.** `direct_identifier_overlap.csv` counts self-introductions,
-  emails, phone numbers and credentials in user turns. Presidio's phone pattern also fires on other
-  digit strings, a self-introduction can be a role-play persona, and none of these is checked by
-  hand yet. WildChat already redacted most emails. Treat the counts as upper bounds.
-- **Bootstrap intervals hold class sizes fixed** and resample users, so they show sampling noise in
-  the share, not uncertainty in the classes, in the extraction, or in the proxy.
-- **Missing is not absent.** A combination is only evaluated for users who revealed every
-  attribute in it; users who revealed less count as not unique in the headline share.
-- **Small-cell suppression** blanks cells under 10 users, so smoke runs show mostly blanks.
+  more. Numbers from different models are not comparable.
+- **Subsampling.** With `llm.sample_turns` set (the spend cap), only some users are processed, so
+  the LLM sample is then smaller than the Presidio sample.
 
 ## Datasets
 - **Survivorship:** we measure only what survived each release's filtering (WildChat deletions

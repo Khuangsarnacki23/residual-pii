@@ -1,8 +1,7 @@
 # residual-pii
 
 A reproducible pipeline that measures how much personal information remains in public LLM
-chat-log datasets after each dataset's own de-identification, and how many *users* could be singled
-out by the quasi-identifiers they revealed. All outputs are aggregate.
+chat-log datasets after each dataset's own de-identification. All outputs are aggregate.
 
 | Key | Dataset | Existing scrubbing | User proxy |
 |---|---|---|---|
@@ -12,10 +11,13 @@ out by the quasi-identifiers they revealed. All outputs are aggregate.
 
 **Detection layers**
 
-1. Rule-based: Presidio pattern recognizers, `secrets` (API keys, tokens, passwords) and `selfid`
-   (self-introductions such as "my name is ...").
+1. Rule-based: Presidio pattern recognizers, `secrets` (API keys, tokens, passwords), `selfid`
+   (self-introductions such as "my name is ...") and `rules` (types Presidio has no recognizer for:
+   profile links, handles, street addresses, dates of birth, IDs named in context, international
+   phone numbers). Text that `rules` and another detector both find is counted once.
 2. Statistical NER: spaCy through Presidio.
-3. LLM: quasi-identifiers, stated and inferred (off by default; see below).
+3. LLM (off by default; see below): direct identifiers quoted from the turn and stored as located
+   spans, each with whom it belongs to, and quasi-identifiers, stated and inferred.
 
 **Status:** no human validation yet, so all numbers are detector-reported. The labeling export and
 scoring commands exist but no batch has been labeled. The LLM layer has been tested with a fake
@@ -45,7 +47,7 @@ run `.venv/bin/hf auth login` (your token stays in your HF config; the pipeline 
 
 Restrict to some datasets with `--datasets wildchat arena`, and ignore the cache with `--force`.
 
-### Per-user identifiability
+### User-level sampling
 
 ```bash
 .venv/bin/residpii user-activity --config configs/user_level.yaml         # users by conversation count (metadata only)
@@ -59,8 +61,7 @@ Restrict to some datasets with `--datasets wildchat arena`, and ignore the cache
 dataset's own user proxy. Datasets without one (lmsys) are skipped in this mode. `roles: [user,
 assistant]` also fetches assistant turns, which the LLM uses as context.
 
-With `llm.enabled: true` the run continues: LLM extraction of quasi-identifiers → per-user
-profiles (coarsened with `configs/coarsening.yaml`) → uniqueness tables and a figure.
+With `llm.enabled: true` the run continues with LLM extraction of quasi-identifiers.
 
 ### The LLM detector is opt-in
 
@@ -103,7 +104,35 @@ partly annotated is scored on the turns that have labels.
 
 `residpii review --config <config>` does both steps in a browser page instead of a spreadsheet, and
 adds a check of the LLM detector: a sample of its extractions (`--n-attrs`, default 20), each next
-to the message it came from, to mark as right or wrong. The page is served on 127.0.0.1 only, needs
+to the message it came from, to mark as right or wrong.
+
+Labeling is keyboard-first: select text and press the key for its type (`N` name, `E` email, `P`
+phone, ...; the page lists them), `1`-`4` to set whom it is about, `Enter` to repeat the last type.
+The same text is labeled everywhere it appears in the message. With nothing selected, `N` marks the
+message as holding no personal information and moves on, `Enter` goes to the next unlabeled message,
+`Z` undoes. Once a message is labeled, `R` shows what the detectors flagged that you did not, so
+misses can be caught without the detectors steering the first pass; a label added at that point is
+saved with `after_reveal = yes`, and `label-score` reports recall against the blind labels alone
+(`gold = blind_only`) next to the figures for all labels.
+
+Below the spans, each message also takes **attribute labels**: what it reveals about a person (job,
+place, age, ...), marked *stated* or *inferred* and with whom it is about. An inferred attribute
+has no text to select, so these are stored beside the batch in `attrs_<batch>.csv`, and `label-score`
+writes `attribute_validation.csv` (the LLM's attributes against them, by stated and inferred).
+
+For a gold set, two people label the same batch independently:
+
+```bash
+.venv/bin/residpii review --config <config> --annotator ann     # writes batch_<date>__ann.csv
+.venv/bin/residpii review --config <config> --annotator ben     # writes batch_<date>__ben.csv
+.venv/bin/residpii label-agreement --config <config> --a <ann's file> --b <ben's file>
+```
+
+Each annotator works on their own copy of the batch; the exported batch is never written to.
+`label-agreement` writes `annotator_agreement.csv`: span F1 per category, kappa on whether a turn
+holds any personal information, and F1 on attribute labels for stated and inferred separately.
+Both annotators need the same batch file and attribute file; move them between machines only by a
+channel suitable for raw user text. The page is served on 127.0.0.1 only, needs
 the one-time token in the address it prints, loads nothing from the network, and writes answers
 only to `restricted/labels/`. Stop it with Ctrl-C.
 
@@ -117,16 +146,13 @@ A full WildChat run streams roughly 2–3 GB over the network.
 
 ```
 configs/      default.yaml, smoke.yaml, user_level.yaml, user_level_smoke.yaml (each extends the previous),
-              taxonomy.yaml, coarsening.yaml, prompts/qi_extract_v1.txt
+              taxonomy.yaml, prompts/qi_extract_v1.txt
 src/residpii/
   sources.py     streaming Hub adapters → common schema; revision pinning; turn roles
   sampling.py    stratified one-conversation-per-user sample, or a user-level sample
   redactions.py  existing-placeholder matching + k-thresholded format discovery
-  detect.py      Presidio + secrets + selfid detectors → SafeSpan; dummy-value filter; task heuristics
+  detect.py      Presidio + secrets + selfid + rules detectors → SafeSpan; dummy-value filter; task heuristics
   llm.py         LLM quasi-identifier extraction: backends, strict parser, cache, aggregates
-  profiles.py    per-user profiles: coarsening, conflict resolution, variants
-  uniqueness.py  equivalence-class sizes per quasi-identifier combination, bootstrap CIs
-  linkage.py     split-half linkage of a user's conversations; direct identifiers vs unique profiles
   label.py       labeling export, span matching, precision/recall/F1, Cohen's kappa
   dedup.py       exact + MinHash-LSH near-duplicate matching
   analysis.py    weighted prevalence, stratified bootstrap CIs, threshold sensitivity
@@ -135,25 +161,22 @@ src/residpii/
   pipeline.py    stages + content-keyed cache
 docs/            limitations.md, annotation_guide.md
 results/<run>/   aggregate outputs (safe to commit)
-~/.residual-pii/ raw sampled text, span store, LLM outputs, profiles, label batches (outside the repo, 0700)
+~/.residual-pii/ raw sampled text, span store, LLM outputs, label batches (outside the repo, 0700)
 ```
 
-### Output tables added for identifiability
+### Output tables for user-level sampling, the LLM detector and validation
 
 | Table | Contents |
 |---|---|
 | `user_activity.csv` | Users by conversations-per-user bucket. |
 | `prevalence_by_role.csv` | Detector prevalence in user vs assistant turns (when both are fetched). |
 | `llm_attribute_prevalence.csv` | Share of users and conversations with ≥1 attribute, by type × evidence × about. |
+| `llm_span_prevalence.csv` | Share of users and conversations with ≥1 direct identifier quoted by the LLM, by category × about. |
+| `llm_detector_agreement.csv` | Per category and detector: spans, how many overlap a span from the other side (LLM vs the rest), and what the LLM said the overlapped text is about. |
 | `llm_run_stats.csv` | Turns processed, failures, latency, backend, model, prompt version. |
-| `profile_summary.csv` | Per dimension: users with a usable value, with conflicts, ambiguous, unmapped. Profiles have eleven dimensions: six generalised with lookup tables, five kept as stated. |
-| `uniqueness_by_combination.csv` | Per combination of 1–4 dimensions: users, share with k = 1 and k < 5, median k, CIs. |
-| `uniqueness_by_activity.csv` | Share of users unique on ≥1 combination, by conversations-per-user bucket. |
-| `uniqueness_summary.csv` | The same share for all users, and at smaller sample sizes. |
-| `uniqueness_population.csv` | Modelled share unique among all eligible users, and the model's prediction at the observed sample sizes beside the observed share. |
-| `linkage.csv` | Each user's conversations split in two at random: share whose halves match each other best, on profile attributes, on direct identifiers (by hash), or both; with the chance rate. |
-| `direct_identifier_overlap.csv` | Users with a self-stated name, email, phone number or credential in their own turns, and how many of them also have a unique profile. |
 | `detector_validation.csv` | Precision, recall, F1 per detector × category; LLM-vs-human kappa on `about`. |
+| `attribute_validation.csv` | LLM attributes against hand-labeled ones: precision, recall, F1 per attribute type, for stated and inferred. |
+| `annotator_agreement.csv` | Two annotators on one batch: span F1 per category, turn-level kappa, attribute F1 (stated, inferred). |
 | `llm_attribute_review.csv` | Manual check of LLM extractions: reviewed count and share where the value is right, `about` and evidence agree, or the model missed something. |
 
 In these tables a cell based on fewer than `publication.min_cell` (10) users is blank and the row
@@ -167,7 +190,7 @@ has `suppressed = True`.
 - **Raw spans are never written.** Spans are stored as offsets, category, length, and a keyed
   HMAC-SHA256 (key at `~/.residual-pii/hmac.key`, 0600).
 - **Raw text and extracted values stay outside the repo**, in
-  `~/.residual-pii/runs/<run>/restricted` (0700). That includes LLM outputs, per-user profiles and
+  `~/.residual-pii/runs/<run>/restricted` (0700). That includes LLM outputs and
   label batches, which are personal data themselves.
 - **Everything under `results/<run>/` is aggregate.** `assert_safe_table` refuses to write a
   results table with an unvetted text column; a text column is vetted only if it holds category

@@ -22,6 +22,29 @@ ANNOTATION_COLUMNS = ["span_text", "start", "end", "pii_type", "about", "sensiti
 LABEL_COLUMNS = [*ID_COLUMNS, *ANNOTATION_COLUMNS]
 ABOUT_LABELS = ("user", "third_party", "public", "fictional")
 NONE = "none"
+# Quasi-identifying attributes of a message, labeled next to its spans (review page). An inferred
+# attribute has no span to select, so these live in their own file: attrs_<batch file name>.
+ATTR_LABEL_COLUMNS = ["item_id", "dataset", "conversation_id", "turn_index", "attribute_type", "evidence", "about",
+                      "value"]
+ATTR_EVIDENCE = ("stated", "inferred")
+AFTER_REVEAL = "after_reveal"   # "yes" on a label added after the annotator looked at the detectors' output
+
+
+def attrs_path(labels_path: str | Path) -> Path:
+    p = Path(labels_path)
+    return p.with_name(f"attrs_{p.stem}.csv")
+
+
+def read_attribute_labels(labels_path: str | Path) -> pd.DataFrame:
+    """The attribute labels that go with a batch file; empty when none were made."""
+    path = attrs_path(labels_path)
+    if not path.exists():
+        return pd.DataFrame(columns=[*ATTR_LABEL_COLUMNS, AFTER_REVEAL])
+    df = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if AFTER_REVEAL not in df:
+        df[AFTER_REVEAL] = ""
+    df["turn_index"] = df["turn_index"].astype(int)
+    return df
 TURN = ["dataset", "conversation_id", "turn_index"]
 
 
@@ -136,8 +159,9 @@ def gold_spans(labels: pd.DataFrame, categories: list[str]) -> tuple[pd.DataFram
                 pos += len(needle)
         if not found:
             skipped["span_not_found"] += 1
-        rows += [(r.dataset, r.conversation_id, r.turn_index, s, e, r.pii_type, about) for s, e in found]
-    cols = [*TURN, "start", "end", "category", "about"]
+        blind = str(getattr(r, AFTER_REVEAL, "")).strip().casefold() != "yes"
+        rows += [(r.dataset, r.conversation_id, r.turn_index, s, e, r.pii_type, about, blind) for s, e in found]
+    cols = [*TURN, "start", "end", "category", "about", "blind"]
     return pd.DataFrame(rows, columns=cols).drop_duplicates().reset_index(drop=True), skipped
 
 
@@ -233,3 +257,72 @@ def about_agreement(labels: pd.DataFrame, gold: pd.DataFrame, llm_attrs: pd.Data
     rows.append({"detector": "llm_vs_human", "category": "about_matched_spans", "n_items": len(pairs),
                  "kappa": cohen_kappa([h for h, _ in pairs], [m for _, m in pairs])})
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------- attributes and second annotator
+
+HUMAN_ABOUT_FROM_LLM = {**LLM_ABOUT_TO_HUMAN, "unclear": ""}
+
+
+def score_attributes(gold: pd.DataFrame, llm_attrs: pd.DataFrame, turns: pd.DataFrame) -> pd.DataFrame:
+    """LLM attributes against hand-labeled ones, on labeled turns the LLM answered.
+
+    The unit is (turn, attribute type, about): the LLM is right when the annotator recorded the same
+    attribute type about the same kind of person in that turn. Values are not compared. One row per
+    attribute type x evidence, where evidence is the annotator's for recall (how much of what was
+    stated, or only inferable, the model found) and the model's for precision."""
+    unit = [*TURN, "attribute_type", "about"]
+    turns = turns[TURN].drop_duplicates()
+    g = gold.merge(turns, on=TURN)[[*unit, "evidence"]].drop_duplicates(unit)
+    m = llm_attrs.rename(columns={"type": "attribute_type"}).merge(turns, on=TURN)
+    m = m.assign(about=m["about"].map(HUMAN_ABOUT_FROM_LLM))[[*unit, "evidence"]].drop_duplicates(unit)
+    g_hit = g.merge(m[unit].assign(hit=True), on=unit, how="left")["hit"].fillna(False).to_numpy(dtype=bool)
+    m_hit = m.merge(g[unit].assign(hit=True), on=unit, how="left")["hit"].fillna(False).to_numpy(dtype=bool)
+    rows = []
+    for typ in [*sorted(set(g["attribute_type"]) | set(m["attribute_type"])), "all"]:
+        for ev in (*ATTR_EVIDENCE, "any"):
+            gm = ((g["attribute_type"] == typ) | (typ == "all")) & ((g["evidence"] == ev) | (ev == "any"))
+            mm = ((m["attribute_type"] == typ) | (typ == "all")) & ((m["evidence"] == ev) | (ev == "any"))
+            rows.append({"attribute_type": typ, "evidence": ev,
+                         **_prf(int(gm.sum()), int(mm.sum()), int(m_hit[mm.to_numpy()].sum()), int(g_hit[gm.to_numpy()].sum()))})
+    return pd.DataFrame(rows)
+
+
+def annotator_agreement(a: pd.DataFrame, b: pd.DataFrame, a_attrs: pd.DataFrame, b_attrs: pd.DataFrame,
+                        categories: list[str], min_overlap: float = 0.5) -> pd.DataFrame:
+    """Agreement between two annotators of the same batch, on the turns both labeled.
+
+    Spans: F1 per category, counting a span as agreed when the other annotator has a matching span of
+    the same category (F1 is the usual measure for spans; kappa needs a fixed set of items). Turns:
+    kappa on whether the turn holds any personal information. Attributes: F1 on (turn, type, about),
+    for stated and inferred labels separately, by each annotator's own evidence label."""
+    def labeled(df):
+        return df[df.groupby("item_id")["pii_type"].transform(lambda s: (s != "").any())]
+    a, b = labeled(a), labeled(b)
+    both = a[TURN].drop_duplicates().merge(b[TURN].drop_duplicates(), on=TURN)
+    ga, gb = (gold_spans(x.merge(both, on=TURN), categories)[0] for x in (a, b))
+    rows = []
+    hit_a, hit_b = _matched(ga, gb, min_overlap), _matched(gb, ga, min_overlap)
+    for cat in [*sorted(set(ga["category"]) | set(gb["category"])), "all"]:
+        ma = np.ones(len(ga), bool) if cat == "all" else (ga["category"] == cat).to_numpy()
+        mb = np.ones(len(gb), bool) if cat == "all" else (gb["category"] == cat).to_numpy()
+        s = _prf(int(mb.sum()), int(ma.sum()), int(hit_a[ma].sum()), int(hit_b[mb].sum()))
+        rows.append({"measure": "span_f1", "category": cat, "n_a": s["n_pred"], "n_b": s["n_gold"], "agreement": s["f1"]})
+    key = lambda df: set(map(tuple, df[TURN].to_numpy()))  # noqa: E731
+    turns = list(map(tuple, both.to_numpy()))
+    xa = key(ga) | key(a_attrs.merge(both, on=TURN)) if len(a_attrs) else key(ga)
+    xb = key(gb) | key(b_attrs.merge(both, on=TURN)) if len(b_attrs) else key(gb)
+    rows.append({"measure": "turn_kappa", "category": "has_personal_information", "n_a": len(xa), "n_b": len(xb),
+                 "agreement": cohen_kappa([t in xa for t in turns], [t in xb for t in turns])})
+    unit = [*TURN, "attribute_type", "about"]
+    ua, ub = (x.merge(both, on=TURN)[[*unit, "evidence"]].drop_duplicates(unit) for x in (a_attrs, b_attrs))
+    in_b = ua.merge(ub[unit].assign(hit=True), on=unit, how="left")["hit"].fillna(False).to_numpy(dtype=bool)
+    in_a = ub.merge(ua[unit].assign(hit=True), on=unit, how="left")["hit"].fillna(False).to_numpy(dtype=bool)
+    for ev in (*ATTR_EVIDENCE, "any"):
+        ma = ((ua["evidence"] == ev) | (ev == "any")).to_numpy()
+        mb = ((ub["evidence"] == ev) | (ev == "any")).to_numpy()
+        s = _prf(int(mb.sum()), int(ma.sum()), int(in_b[ma].sum()), int(in_a[mb].sum()))
+        rows.append({"measure": "attribute_f1", "category": ev, "n_a": s["n_pred"], "n_b": s["n_gold"], "agreement": s["f1"]})
+    out = pd.DataFrame(rows)
+    out.insert(0, "n_turns_both", len(turns))
+    return out

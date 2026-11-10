@@ -17,3 +17,5 @@ llm:
   # keep it on only while the dataset terms, your instructor/IRB and your partner allow it.
   allow_hosted: true
   sample_turns: null         # every turn of every sampled user
+  prompt_version: v1         # the prompt these results were produced with
+  extract_spans: false

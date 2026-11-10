@@ -6,7 +6,7 @@ per_user_one_conv  Stratified random sample with at most one conversation per us
     conversations". lmsys-chat-1m has no proxy, so its sample is per-conversation.
 
 user_level  A uniform sample of *users* with enough conversations, keeping their conversations
-    (up to a cap) together, for the per-user identifiability analysis. The only link between
+    (up to a cap) together, for per-user reporting. The only link between
     conversations is the dataset's own user proxy, already replaced by a keyed hash (`user_key`).
 """
 from __future__ import annotations

@@ -211,7 +211,7 @@ def test_user_level_tables(user_run):
     _assert_no_canaries(pipe, console)
 
 
-# ---------------------------------------------------------------- LLM stage -> profiles -> uniqueness
+# ---------------------------------------------------------------- LLM stage
 
 
 def _fake_llm(system: str, user: str) -> str:
@@ -236,7 +236,10 @@ def _fake_llm(system: str, user: str) -> str:
         attrs += [attr("occupation", "knight", about="fictional")]
     if "python" in turn:
         attrs += [attr("occupation", "software developer", evidence="inferred", confidence=0.7)]
-    return json.dumps({"attributes": attrs})
+    spans = [{"text": c, "type": typ, "about": "user"} for c, typ in (("Quillon Varnadore", "name"),
+             ("quillon.varnadore@zephyrmailtest.org", "email")) if c in turn]
+    task = "job_application" if "cover letter" in turn else "story_roleplay" if "knight" in turn else "info_or_other"
+    return json.dumps({"task_type": task, "spans": spans, "attributes": attrs})
 
 
 @pytest.fixture()
@@ -268,32 +271,34 @@ def test_llm_stage_outputs(llm_run):
     assert row["n_users"] >= 10 and 0 < row["share_users"] <= 1
     assert prev.loc[prev["suppressed"], "n_users"].isna().any()
 
-    # Raw values and profiles exist, and only under restricted/.
+    # Quoted identifiers are stored as located spans, and compared with the other detectors.
+    located = pd.read_parquet(pipe.paths.restricted / "llm_spans_wildchat.parquet")
+    assert len(located) and set(located["detector"]) == {"llm"} and "text" not in located
+    assert stats["spans_quoted"] > 0 and stats["quotes_not_found"] == 0 and manifest["llm"]["extract_spans"]
+    span_prev = pd.read_csv(t / "llm_span_prevalence.csv")
+    assert set(span_prev["category"]) == {*llm.SPAN_TYPES, "any"} and "private" in set(span_prev["about"])
+    agree = pd.read_csv(t / "llm_detector_agreement.csv").set_index(["category", "detector"])
+    assert agree.loc[("name", "llm"), "n_spans"] > 0 and agree.loc[("name", "presidio"), "n_matched"] > 0
+
+    # The model's task label replaces the keyword one where it exists.
+    agree = pd.read_csv(t / "task_type_agreement.csv")
+    assert {"keyword_task_type", "task_type", "n_conversations"} <= set(agree.columns)
+    assert manifest["task_types"]["from_llm"] > 0 and 0 <= manifest["task_types"]["keyword_llm_agreement"] <= 1
+    by_task = pd.read_csv(t / "prevalence_by_task.csv")
+    assert "job_application" in set(by_task["task_type"])
+
+    # Raw values exist, and only under restricted/.
     attrs = pd.read_parquet(pipe.paths.restricted / "llm_attrs_wildchat.parquet")
     assert attrs["value"].str.contains("Brisvale").any()
-    prof = pd.read_parquet(pipe.paths.restricted / "profiles_wildchat.parquet")
-    assert prof["user"].nunique() == 13 and set(prof["variant"]) == {"stated_only", "stated_plus_inferred"}
-    # Coarsened to SOC codes (a nurse/developer tie across conversations is `ambiguous`), never the raw title.
-    assert (prof["occupation_group"].dropna().isin(["29", "29-1", "15", "15-1", "ambiguous"])).all()
-    assert set(prof["level"]) == {"generalized"}
-    assert prof.loc[prof["variant"] == "stated_only", "gender"].isna().all()       # gender was only inferred
     for root in (pipe.paths.results, pipe.paths.work):
-        assert not [f.name for f in root.rglob("*") if "profiles" in f.name or "llm_attrs" in f.name
-                    or "llm_cache" in f.name]
-
-    for name in ("profile_summary", "uniqueness_by_combination", "uniqueness_by_activity", "uniqueness_summary",
-                 "linkage", "direct_identifier_overlap"):
-        assert (t / f"{name}.csv").exists(), name
-    summ = pd.read_csv(t / "uniqueness_summary.csv")
-    assert summ["share_unique"].notna().any()
-    assert (pipe.paths.figures / "uniqueness_by_n_qi_wildchat.png").exists()
-    assert "uniqueness_by_n_qi_wildchat" in manifest["figures"]
+        assert not [f.name for f in root.rglob("*") if "llm_attrs" in f.name or "llm_cache" in f.name
+                    or "llm_spans" in f.name]
 
 
 def test_llm_values_never_leave_restricted(llm_run):
     pipe, _, console = llm_run
     _assert_no_canaries(pipe, console)
-    # Coarsened values are personal data too: none may appear in a published table.
+    # Extracted values are personal data: none may appear in a published table.
     for f in pipe.paths.tables.glob("*.csv"):
         text = f.read_text().casefold()
         for value in ("colorado", "us_west", "30-39", "nurse", "software developer"):

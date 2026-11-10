@@ -3,13 +3,19 @@
 categories:
   name:             {tier: direct, labels: [PERSON, SELF_NAME]}   # SELF_NAME: selfid detector
   email:            {tier: direct, labels: [EMAIL_ADDRESS]}
-  phone:            {tier: direct, labels: [PHONE_NUMBER]}
+  phone:            {tier: direct, labels: [PHONE_NUMBER, INTL_PHONE]}   # INTL_PHONE: rules detector
   account_id:       {tier: direct, labels: [CREDIT_CARD, IBAN_CODE, US_SSN, US_BANK_NUMBER, US_PASSPORT,
-                                            US_DRIVER_LICENSE, US_ITIN, CRYPTO, MEDICAL_LICENSE, UK_NHS]}
+                                            US_DRIVER_LICENSE, US_ITIN, CRYPTO, MEDICAL_LICENSE, UK_NHS,
+                                            CONTEXT_ID]}   # CONTEXT_ID: rules detector
   ip_address:       {tier: direct, labels: [IP_ADDRESS]}
-  # Most URLs in these datasets are links to public sites/docs. Kept in their own tier until a
-  # personal-URL filter exists, so they don't swamp the direct-identifier union.
+  # Most URLs in these datasets are links to public sites/docs. Kept in their own tier so they
+  # don't swamp the direct-identifier union; profile links are picked out as `personal_url`.
   url:              {tier: url_unfiltered, labels: [URL]}
+  # Rules detector: types Presidio has no recognizer for.
+  personal_url:     {tier: direct, labels: [PERSONAL_URL]}
+  handle:           {tier: direct, labels: [SOCIAL_HANDLE]}
+  street_address:   {tier: direct, labels: [STREET_ADDRESS]}
+  date_of_birth:    {tier: quasi, labels: [DATE_OF_BIRTH]}
   api_key_token:    {tier: direct, labels: [SECRET_TOKEN]}
   location:         {tier: quasi, labels: [LOCATION]}
   date:             {tier: quasi, labels: [DATE_TIME]}

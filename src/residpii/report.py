@@ -25,6 +25,61 @@ VARIANT_LABELS = {"all": "All conversations", "excl_story_roleplay": "Excluding 
 TIER_LABELS = {"tier_direct": "any direct identifier", "tier_quasi": "any quasi-identifier"}
 
 
+VARIANT_COLORS = {"stated_only": "#2a78d6", "stated_plus_inferred": "#eb6834"}   # palette slots 1-2
+PROFILE_VARIANT_LABELS = {"stated_only": "Stated only", "stated_plus_inferred": "Stated + inferred"}
+LEVEL_LABELS = {"generalized": "11 attributes, generalised where a lookup table exists"}
+
+
+def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.DataFrame | None = None) -> list[str]:
+    """Share of sampled users unique on >= 1 combination, against the number of quasi-identifiers.
+    One line per profile variant, one panel per coarsening level, one file per dataset. Dashed lines
+    are the modelled share among all eligible users, when `population` holds that estimate."""
+    pop = None if population is None else population[population["subset"] == "population"]
+    made = []
+    full = summary[(summary["ci_kind"] == "bootstrap_users") & summary["share_unique"].notna()]
+    for ds, d in full.groupby("dataset"):
+        levels = sorted(d["level"].unique())
+        fig, axes = plt.subplots(1, len(levels), figsize=(max(4.4 * len(levels) + 0.6, 7.2), 3.6), sharey=True, squeeze=False)
+        for ax, level in zip(axes[0], levels):
+            for variant, color in VARIANT_COLORS.items():
+                v = d[(d["level"] == level) & (d["variant"] == variant)].sort_values("n_qi")
+                if v.empty:
+                    continue
+                ax.fill_between(v["n_qi"], v["ci_low"], v["ci_high"], color=color, alpha=0.15, linewidth=0)
+                ax.plot(v["n_qi"], v["share_unique"], color=color, linewidth=2, marker="o", markersize=6,
+                        markeredgecolor="white", markeredgewidth=1.5, label=PROFILE_VARIANT_LABELS[variant])
+                e = None if pop is None else pop[(pop["dataset"] == ds) & (pop["level"] == level)
+                                                 & (pop["variant"] == variant)].sort_values("n_qi")
+                if e is not None and len(e):
+                    ax.plot(e["n_qi"], e["share_unique_model"], color=color, linewidth=1.5, linestyle=(0, (4, 2)))
+            ax.set_title(LEVEL_LABELS.get(level, level), fontsize=10, color=TEXT_PRIMARY, loc="left")
+            ax.set_xticks(sorted(d["n_qi"].unique()))
+            ax.set_xlabel("Quasi-identifiers combined (up to)", fontsize=9)
+            ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10]))   # whole percents
+            ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
+            ax.set_ylim(0, max(0.05, float(d["ci_high"].max()) * 1.1))
+            _style(ax)
+            ax.grid(axis="x", visible=False)
+            ax.grid(axis="y", color=GRID, linewidth=0.8)
+        axes[0][0].set_ylabel("Sampled users unique on ≥1 combination", fontsize=9, color=TEXT_SECONDARY)
+        handles, labels = axes[0][0].get_legend_handles_labels()
+        big = None if pop is None or pop[pop["dataset"] == ds].empty else int(pop.loc[pop["dataset"] == ds, "target_users"].iloc[0])
+        if big:
+            handles.append(plt.Line2D([], [], color=TEXT_SECONDARY, linewidth=1.5, linestyle=(0, (4, 2))))
+            labels.append(f"Modelled, all {big:,} eligible users")
+        fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
+        n = int(d["sample_users"].iloc[0])
+        fig.suptitle(f"{DATASET_LABELS.get(ds, ds)}: within-sample uniqueness (n = {n:,} users, 95% bootstrap CI)",
+                     x=0.01, ha="left", fontsize=11, color=TEXT_PRIMARY)
+        fig.tight_layout(rect=(0, 0.07, 1, 0.92))
+        name = f"uniqueness_by_n_qi_{ds}"
+        for ext in ("png", "pdf"):
+            fig.savefig((fig_dir / name).with_suffix(f".{ext}"), dpi=200)
+        plt.close(fig)
+        made.append(name)
+    return made
+
+
 def _presidio_version() -> str:
     from importlib.metadata import version
 
@@ -99,61 +154,6 @@ def figures(prev: pd.DataFrame, by_task: pd.DataFrame, taxonomy: dict, fig_dir: 
     return made
 
 
-VARIANT_COLORS = {"stated_only": "#2a78d6", "stated_plus_inferred": "#eb6834"}   # palette slots 1-2
-PROFILE_VARIANT_LABELS = {"stated_only": "Stated only", "stated_plus_inferred": "Stated + inferred"}
-LEVEL_LABELS = {"generalized": "11 attributes, generalised where a lookup table exists"}
-
-
-def uniqueness_figures(summary: pd.DataFrame, fig_dir: Path, population: pd.DataFrame | None = None) -> list[str]:
-    """Share of sampled users unique on >= 1 combination, against the number of quasi-identifiers.
-    One line per profile variant, one panel per coarsening level, one file per dataset. Dashed lines
-    are the modelled share among all eligible users, when `population` holds that estimate."""
-    pop = None if population is None else population[population["subset"] == "population"]
-    made = []
-    full = summary[(summary["ci_kind"] == "bootstrap_users") & summary["share_unique"].notna()]
-    for ds, d in full.groupby("dataset"):
-        levels = sorted(d["level"].unique())
-        fig, axes = plt.subplots(1, len(levels), figsize=(max(4.4 * len(levels) + 0.6, 7.2), 3.6), sharey=True, squeeze=False)
-        for ax, level in zip(axes[0], levels):
-            for variant, color in VARIANT_COLORS.items():
-                v = d[(d["level"] == level) & (d["variant"] == variant)].sort_values("n_qi")
-                if v.empty:
-                    continue
-                ax.fill_between(v["n_qi"], v["ci_low"], v["ci_high"], color=color, alpha=0.15, linewidth=0)
-                ax.plot(v["n_qi"], v["share_unique"], color=color, linewidth=2, marker="o", markersize=6,
-                        markeredgecolor="white", markeredgewidth=1.5, label=PROFILE_VARIANT_LABELS[variant])
-                e = None if pop is None else pop[(pop["dataset"] == ds) & (pop["level"] == level)
-                                                 & (pop["variant"] == variant)].sort_values("n_qi")
-                if e is not None and len(e):
-                    ax.plot(e["n_qi"], e["share_unique_model"], color=color, linewidth=1.5, linestyle=(0, (4, 2)))
-            ax.set_title(LEVEL_LABELS.get(level, level), fontsize=10, color=TEXT_PRIMARY, loc="left")
-            ax.set_xticks(sorted(d["n_qi"].unique()))
-            ax.set_xlabel("Quasi-identifiers combined (up to)", fontsize=9)
-            ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10]))   # whole percents
-            ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
-            ax.set_ylim(0, max(0.05, float(d["ci_high"].max()) * 1.1))
-            _style(ax)
-            ax.grid(axis="x", visible=False)
-            ax.grid(axis="y", color=GRID, linewidth=0.8)
-        axes[0][0].set_ylabel("Sampled users unique on ≥1 combination", fontsize=9, color=TEXT_SECONDARY)
-        handles, labels = axes[0][0].get_legend_handles_labels()
-        big = None if pop is None or pop[pop["dataset"] == ds].empty else int(pop.loc[pop["dataset"] == ds, "target_users"].iloc[0])
-        if big:
-            handles.append(plt.Line2D([], [], color=TEXT_SECONDARY, linewidth=1.5, linestyle=(0, (4, 2))))
-            labels.append(f"Modelled, all {big:,} eligible users")
-        fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False, fontsize=9, labelcolor=TEXT_PRIMARY)
-        n = int(d["sample_users"].iloc[0])
-        fig.suptitle(f"{DATASET_LABELS.get(ds, ds)}: within-sample uniqueness (n = {n:,} users, 95% bootstrap CI)",
-                     x=0.01, ha="left", fontsize=11, color=TEXT_PRIMARY)
-        fig.tight_layout(rect=(0, 0.07, 1, 0.92))
-        name = f"uniqueness_by_n_qi_{ds}"
-        for ext in ("png", "pdf"):
-            fig.savefig((fig_dir / name).with_suffix(f".{ext}"), dpi=200)
-        plt.close(fig)
-        made.append(name)
-    return made
-
-
 METHODS_TEMPLATE = """# Methods summary (auto-generated {today}; adapt before use)
 
 ## Data
@@ -181,13 +181,20 @@ Presidio Analyzer (v{presidio_version}) with spaCy `{spacy_model}`, score thresh
 {chunk}-character windows with {overlap}-character overlap, up to {max_chars} characters per
 turn. A separate rule-based detector matched API keys, access tokens, private-key headers, and
 hard-coded credentials, and another matched self-introductions ("my name is ...", "call me ..."),
-reported as detector `selfid`. Detections were mapped onto direct and quasi-identifier categories
+reported as detector `selfid`. A third, `rules`, matched types Presidio has no recognizer for:
+profile links and handles on social and code platforms, street addresses, full dates of birth,
+identifiers named in context ("student ID: ...") and international-format phone numbers. Text found
+by more than one detector was counted once: a `rules` span overlapping another detector's specific
+detection was dropped, and a Presidio URL, date, location or name overlapping a remaining `rules`
+span was dropped in its favour (excluded_detections.csv). Detections were mapped onto direct and quasi-identifier categories
 (configs/taxonomy.yaml). Detections matching common dummy or reserved values (e.g. example.com
 addresses, 555 phone numbers, private IP ranges, payment-processor test cards) were excluded. Raw
 span text was never written to disk; spans were stored as character offsets, category, length, and a
 keyed HMAC-SHA256 of the normalised value.
 
-Task type was assigned with keyword heuristics (not a validated classifier). As a sensitivity
+Task type was assigned with keyword heuristics (not a validated classifier); where the LLM detector
+ran with a prompt that asks for it, the model's label for the conversation (the most common label
+across its user turns) was used instead, and task_type_agreement.csv compares the two. As a sensitivity
 analysis for fictional names, results are reported with and without conversations tagged as
 story/role-play.
 
@@ -196,7 +203,7 @@ Prevalence is the design-weighted share of conversations with at least one resid
 95% confidence intervals use a stratified percentile bootstrap ({reps} replicates), resampling
 conversations within strata.
 
-{identifiability}## Limitations (summary)
+{llm_section}## Limitations (summary)
 Results are detector-reported prevalence and have not yet been validated against human labels, so
 they mix true and false positives. Presidio was also the tool used to redact WildChat, so WildChat's
 Presidio residual is low by construction. See docs/limitations.md.
@@ -217,48 +224,22 @@ addresses). Datasets without a user proxy were not sampled. Conversation-level t
 conversation by (eligible users / sampled users) x (the user's conversations / conversations kept);
 their confidence intervals resample conversations and ignore clustering within users."""
 
-IDENTIFIABILITY_TEMPLATE = """## LLM extraction of quasi-identifiers
+SPANS_NOTE = """ The model was also asked to quote the direct identifiers
+in the turn (names, email addresses, phone numbers, addresses, ID numbers, profile links, handles,
+credentials, dates of birth) and to say whom each belongs to. Each quote was located in the turn and
+stored as character offsets, category and keyed hash, like the other detectors' spans; quotes that
+could not be found verbatim were discarded and counted (llm_run_stats.csv). These spans are reported
+separately (llm_span_prevalence.csv) and compared with the other detectors span by span
+(llm_detector_agreement.csv); they are not part of the prevalence tables."""
+
+LLM_TEMPLATE = """## LLM extraction of quasi-identifiers
 For {llm_turns:,} sampled user turns ({llm_scope}), a language model ({backend} `{model}`, prompt
 `qi_extract_{prompt_version}`, {hosted_note}) was given the turn, with the preceding turn as
 context, and asked for the quasi-identifying attributes it reveals: type, value, whether it was
 stated or inferred, whom it is about, and a confidence. Responses were validated against a strict
 schema; a malformed response was retried once and otherwise recorded as a failure ({llm_failures:,}
 of {llm_turns:,} turns). Turns longer than {max_turn_chars:,} characters were truncated. Extracted
-values were stored only in the access-restricted directory.
-
-## Per-user profiles and uniqueness
-For each user we kept attributes about the user with confidence >= {min_confidence} and built a
-profile on eleven dimensions. Six were generalised with fixed lookup tables (configs/coarsening.yaml)
-so that different wordings of one fact match: state or region, country, occupation (SOC minor group
-where available, else major group), 10-year age band, gender and education level; a value the
-tables do not cover was set to `unknown`. Five have no table and were kept as stated (normalised
-text): employer type, school, relationship status, nationality and native language. We report two
-variants (stated attributes only; stated plus inferred). When a user's conversations disagreed we
-took the majority value and treated ties as ambiguous.
-
-For every combination of one to {max_combo} dimensions we computed the equivalence-class size k
-among users with a usable value for each dimension in the combination, and report the share of
-those users with k = 1 and k < 5 and the median k, with {reps}-replicate bootstrap intervals that
-resample users. We also report the share of all sampled users who are unique on at least one
-combination, overall and by number of conversations.
-
-Uniqueness is measured within the sample and therefore overstates uniqueness in the population of
-all users; we report it at several sample sizes to show how it falls as the sample grows (see Rocher,
-Hendrickx & de Montjoye, 2019, for the population-level argument). To estimate uniqueness among all
-eligible users we modelled the chance that another user matches a given user on a combination as
-the product of the leave-one-out shares of sampled users with the same value on each dimension
-(region and country jointly, the other dimensions independently), and took a user to be unique
-among M users when none of the other M - 1 would match. The same model evaluated at the sample
-sizes we observed is reported next to the observed shares as a check. Cells based on fewer than
-{min_cell} users are suppressed.
-
-To test whether these attributes would let records be linked, we split each user's conversations at
-random into two halves, built a profile from each half, and matched every first half against all
-second halves, scoring a shared value by the negative log of its share among second halves. A user
-is linked when their own second half is the single best match. We repeated this with direct
-identifiers detected in user turns (self-stated names, email addresses, phone numbers, credentials,
-compared by keyed hash) and with both together, and averaged over repeated random splits. No outside
-data was used, and we did not attempt to identify any user.
+values were stored only in the access-restricted directory.{spans_note}
 
 """
 
@@ -291,22 +272,21 @@ def methods_summary(cfg: dict, manifest: dict, results_dir: Path) -> None:
         sampling_text = SAMPLING_PER_CONVERSATION.format(
             targets=", ".join(f"{k}={v['sample_size']}" for k, v in cfg["datasets"].items() if v.get("enabled")),
             seed=cfg["seed"], strata=" × ".join(cfg["sampling"]["strata"]))
-    identifiability = ""
+    llm_section = ""
     if "llm" in manifest:
         m, lcfg = manifest["llm"], cfg["llm"]
-        identifiability = IDENTIFIABILITY_TEMPLATE.format(
+        llm_section = LLM_TEMPLATE.format(
             llm_turns=m["turns_processed"], llm_failures=m["failures"], backend=m["backend"], model=m["model"],
             prompt_version=m["prompt_version"],
             llm_scope="all sampled user turns" if lcfg.get("sample_turns") is None
             else f"a random subsample capped at {lcfg['sample_turns']:,}",
             hosted_note="a hosted API, used with explicit opt-in" if m["hosted"] else "a test stub",
-            max_turn_chars=lcfg["max_turn_chars"], min_confidence=lcfg["min_confidence"],
-            max_combo=cfg.get("uniqueness", {}).get("max_combination_size", 4),
-            reps=cfg["analysis"]["bootstrap_reps"], min_cell=cfg.get("publication", {}).get("min_cell", 10))
+            max_turn_chars=lcfg["max_turn_chars"],
+            spans_note=SPANS_NOTE if m.get("extract_spans") else "")
     text = METHODS_TEMPLATE.format(
         today=date.today().isoformat(), dataset_lines=ds_lines, languages=cfg.get("languages") or "any",
         roles_sentence=roles_sentence, sampling_text=sampling_text, sampling_lines=smp,
-        identifiability=identifiability,
+        llm_section=llm_section,
         presidio_version=_presidio_version(), spacy_model=p["spacy_model"],
         threshold=p["score_threshold"],
         org_note="" if p.get("include_organization") else " (ORGANIZATION ignored, as in Presidio's defaults)",

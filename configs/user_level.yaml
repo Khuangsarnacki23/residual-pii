@@ -8,7 +8,7 @@ roles: [user, assistant]
 sampling:
   mode: user_level
 
-# The identifiability analysis (profiles, uniqueness) needs the LLM detector. It is off by default;
+# The LLM detector is off by default;
 # see README "The LLM detector is opt-in" before turning it on, and pilot with fireworks_pilot.yaml.
 #   llm:
 #     enabled: true
