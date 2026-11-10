@@ -38,6 +38,8 @@ Restrict to some datasets with `--datasets wildchat arena`, and ignore the cache
 ### Human labelling (precision / recall benchmark)
 
 Requires a completed `run` on the same config. Each command reads `labeling:` in `configs/default.yaml`.
+Step-by-step for two annotators on separate laptops, with the labelling rules:
+[docs/labelling_workflow.md](docs/labelling_workflow.md).
 
 ```bash
 .venv/bin/residpii label build      --config configs/default.yaml                 # draw 300 WildChat user turns
