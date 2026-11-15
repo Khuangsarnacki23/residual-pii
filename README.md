@@ -9,8 +9,10 @@ chat-log datasets after each dataset's own de-identification. All outputs are ag
 | `lmsys` | lmsys/lmsys-chat-1m (gated) | PII conversations removed; names as `NAME_n` | none |
 | `arena` | lmsys/chatbot_arena_conversations (gated) | PII conversations removed | `judge` |
 
-**Status:** detection is Presidio + rule-based secrets only. No LLM detector yet. The human-labelling
-workflow is built (below), but no labels have been collected; see [docs/limitations.md](docs/limitations.md).
+**Status:** Stage 1 is done for WildChat: a 300-item gold set labelled by two annotators and
+adjudicated, with Presidio and the secrets rules scored against it. Results and the summary line are
+in [docs/stage1_results.md](docs/stage1_results.md). The LLM detector is built but not yet scored
+(opt-in, hosted). LMSYS and Arena have no label sets. See [docs/limitations.md](docs/limitations.md).
 
 ## Setup
 
