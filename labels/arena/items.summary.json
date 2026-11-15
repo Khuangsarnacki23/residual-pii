@@ -1,0 +1,27 @@
+{
+  "dataset": "arena",
+  "seed": 20268931,
+  "nonempty_turns": 5884,
+  "eligible_turns": 5884,
+  "share_excluded_long": 0.0,
+  "max_chars": 4000,
+  "strata": {
+    "rare_direct": {
+      "pool": 4,
+      "drawn": 4
+    },
+    "name": {
+      "pool": 787,
+      "drawn": 124
+    },
+    "quasi_only": {
+      "pool": 1062,
+      "drawn": 79
+    },
+    "none": {
+      "pool": 4031,
+      "drawn": 93
+    }
+  },
+  "n_items": 300
+}

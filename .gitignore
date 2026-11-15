@@ -6,3 +6,6 @@ __pycache__/
 data/
 *.key
 .DS_Store
+
+# Raw LLM responses quote user text verbatim: they stay in ~/.residual-pii, never in the repo.
+*_raw.jsonl
