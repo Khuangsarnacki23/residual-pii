@@ -388,6 +388,54 @@ def score(items: pd.DataFrame, gold: dict[str, dict], det: pd.DataFrame, lcfg: d
             "labels_gold_prevalence": pd.DataFrame(prev_rows)}
 
 
+# ---------------------------------------------------------------- prompt templates
+
+
+def template_keys(turns: pd.DataFrame, tcfg: dict) -> pd.Series:
+    """Template key per turn (NaN if not templated).
+
+    A template is a pasted prompt that many users share (e.g. a long image-prompt generator). Turns
+    are keyed by their first `prefix_chars` characters after normalizing case, whitespace and digits;
+    turns shorter than that are never templates, so short greetings do not cluster. A key is a
+    template if it occurs in at least `min_conversations` distinct conversations of the sample.
+    """
+    from .dedup import normalize
+
+    norm = turns["text"].map(lambda s: normalize(s).translate(_DIGITS))
+    n = tcfg["prefix_chars"]
+    key = norm.where(norm.str.len() >= n).str[:n]
+    convs = turns.assign(key=key).dropna(subset=["key"]).groupby("key")["conversation_id"].nunique()
+    templates = set(convs[convs >= tcfg["min_conversations"]].index)
+    return key.where(key.isin(templates))
+
+
+_DIGITS = str.maketrans("0123456789", "0000000000")
+
+
+def drop_templates(cfg: dict, paths: Paths, ds: str, items: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Removes label items whose turn is a shared prompt template. Returns (kept items, counts).
+
+    Scoring then estimates rates over non-templated turns: the remaining items keep their weights,
+    which already spread each stratum's pool over its draws, so the templated share drops out.
+    """
+    tcfg = cfg["labeling"].get("templates") or {}
+    if not tcfg.get("exclude"):
+        return items, {"dataset": ds, "excluded": False}
+    key = ["dataset", "conversation_id", "turn_index"]
+    turns = pd.read_parquet(paths.restricted / f"turns_{ds}.parquet")
+    turns = turns[turns["text"].str.strip().str.len() > 0].reset_index(drop=True)
+    turns = turns[key].assign(template=template_keys(turns, tcfg).to_numpy())
+    flag = items.merge(turns, on=key, how="left")["template"].notna().to_numpy()
+    counts = {"dataset": ds, "excluded": True, "prefix_chars": tcfg["prefix_chars"],
+              "min_conversations": tcfg["min_conversations"],
+              "templates": int(turns["template"].nunique()),
+              "turns": len(turns), "templated_turns": int(turns["template"].notna().sum()),
+              "items": len(items), "templated_items": int(flag.sum()),
+              **{f"templated_items_{h}": int(flag[(items["label_stratum"] == h).to_numpy()].sum())
+                 for h in cfg["labeling"]["strata"]}}
+    return items[~flag].reset_index(drop=True), counts
+
+
 def progress(items: pd.DataFrame, labels: dict[str, dict[str, dict]]) -> pd.DataFrame:
     rows = []
     for who, recs in labels.items():
@@ -434,7 +482,8 @@ def cmd_agreement(cfg: dict, ds: str, pair: tuple[str, str] | None = None) -> pd
 
     a, b = pair or cfg["labeling"]["annotators"][:2]
     paths, items, labels = _load_all(cfg, ds, (a, b))
-    out = agreement(items, labels[a], labels[b], cfg["labeling"]).assign(dataset=ds, annotator=f"{a}~{b}")
+    kept, _ = drop_templates(cfg, paths, ds, items)
+    out = agreement(kept, labels[a], labels[b], cfg["labeling"]).assign(dataset=ds, annotator=f"{a}~{b}")
     write_table(out, paths.tables, f"labels_agreement_{ds}")
     write_table(progress(items, labels).assign(dataset=ds), paths.tables, f"labels_progress_{ds}")
     return out
@@ -449,12 +498,17 @@ def cmd_score(cfg: dict, datasets: list[str] | None = None, gold_from: str | Non
     paths = Paths(cfg).ensure()
     datasets = datasets or labelled_datasets(paths)
     out: dict[str, list[pd.DataFrame]] = {}
-    scored = []
+    scored, template_rows = [], []
     for ds in datasets:
         _, items, labels = _load_all(cfg, ds, (gold_from,))
         gold = labels[gold_from]
         if not gold:
             print(f"[label] {ds}: no labels from '{gold_from}', skipped", file=sys.stderr)
+            continue
+        items, counts = drop_templates(cfg, paths, ds, items)
+        template_rows.append(counts)
+        if items.empty:
+            print(f"[label] {ds}: every item is a template, skipped", file=sys.stderr)
             continue
         spans = pd.read_parquet(paths.restricted / f"spans_{ds}.parquet")
         llm_spans = paths.restricted / f"spans_llm_{ds}.parquet"
@@ -474,6 +528,7 @@ def cmd_score(cfg: dict, datasets: list[str] | None = None, gold_from: str | Non
     if not scored:
         raise RuntimeError(f"No labels from '{gold_from}' in any dataset. Adjudicate first, or pass --gold <annotator>.")
     tables = {name: pd.concat(dfs, ignore_index=True) for name, dfs in out.items()}
+    tables["labels_templates"] = pd.DataFrame(template_rows)
     for name, df in tables.items():
         cols = ["dataset", *[c for c in df.columns if c != "dataset"]]
         write_table(df[cols], paths.tables, name)

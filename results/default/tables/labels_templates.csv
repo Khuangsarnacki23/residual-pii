@@ -1,0 +1,2 @@
+dataset,excluded,prefix_chars,min_conversations,templates,turns,templated_turns,items,templated_items,templated_items_rare_direct,templated_items_name,templated_items_quasi_only,templated_items_none
+wildchat,True,200,5,4,11436,1127,300,40,0,39,1,0
