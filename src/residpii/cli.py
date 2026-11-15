@@ -8,6 +8,8 @@
   residpii label agreement  --config configs/default.yaml
   residpii label llm        --config configs/default.yaml --allow-hosted   # Claude as annotator 'llm'
   residpii label score      --config configs/default.yaml           # precision/recall vs gold
+  residpii identifiability run      --config configs/user_level.yaml   # Stage 2 tables
+  residpii identifiability validate --config configs/default.yaml     # attribute extractor vs gold
 """
 from __future__ import annotations
 
@@ -77,6 +79,17 @@ def main(argv: list[str] | None = None) -> int:
     ld.add_argument("--estimate", action="store_true", help="Print the estimated cost and exit (no API calls)")
     ld.add_argument("--report", action="store_true", help="Only rebuild LLM prevalence tables from stored results")
 
+    idf = sub.add_parser("identifiability", help="Stage 2: per-user uniqueness and linkage")
+    isub = idf.add_subparsers(dest="idf_cmd", required=True)
+    ir = isub.add_parser("run", help="Profiles, uniqueness and linkage tables from a user-level run")
+    iv = isub.add_parser("validate", help="Attribute extractor vs the gold labels on the label items")
+    iv.add_argument("--gold", help="Gold annotator (default: the adjudicated set)")
+    iv.add_argument("--predictor", default="llm_detect",
+                    help="llm_detect (the LLM detector's records, default) or an annotator name, e.g. llm")
+    for p in (ir, iv):
+        p.add_argument("--config", required=True)
+        p.add_argument("--dataset", nargs="*", help="Dataset keys (default: labeling.datasets in the config)")
+
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
 
@@ -120,6 +133,25 @@ def main(argv: list[str] | None = None) -> int:
                     break
         tables = llm_detect.prevalence(cfg, dsets)
         print(tables["llm_coverage"].to_string(index=False))
+        return 0
+
+    if args.cmd == "identifiability":
+        from . import identifiability
+
+        dsets = args.dataset or cfg["labeling"]["datasets"]
+        try:
+            if args.idf_cmd == "run":
+                tables = identifiability.run(cfg, dsets)
+                s = tables["uniqueness_summary"]
+                s = s[s["ci_kind"] == "bootstrap_users"]
+                print(s[["dataset", "variant", "n_qi", "n_users", "share_unique", "ci_low", "ci_high"]]
+                      .to_string(index=False))
+            else:
+                t = identifiability.validate(cfg, dsets, args.gold, args.predictor)
+                print(t.to_string(index=False))
+        except (RuntimeError, FileNotFoundError) as e:
+            print(f"[identifiability] {e}", file=sys.stderr)
+            return 2
         return 0
 
     if args.cmd == "label":

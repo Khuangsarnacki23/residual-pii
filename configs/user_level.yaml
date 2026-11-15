@@ -1,0 +1,38 @@
+# Stage 2 (per-user identifiability): a uniform sample of users with >= min_conversations, all their
+# conversations (up to the cap) kept together. Datasets without a user proxy (lmsys) are skipped.
+#
+#   residpii run             --config configs/user_level.yaml
+#   residpii llm-detect      --config configs/user_level.yaml --estimate        # cost, no API calls
+#   residpii llm-detect      --config configs/user_level.yaml --allow-hosted --max-cost 20
+#   residpii identifiability run --config configs/user_level.yaml
+extends: default.yaml
+run_name: user_level
+
+datasets:
+  arena: {enabled: false}      # judge is a weak proxy; enable to compare
+  lmsys: {enabled: false}      # no user proxy
+
+sampling:
+  mode: user_level
+
+user_level:
+  n_users: 2000
+  min_conversations: 3
+  max_conversations_per_user: 50   # cap heavy users / shared IPs; a random subset is kept above the cap
+
+labeling:
+  datasets: [wildchat]           # datasets llm-detect and identifiability act on by default
+
+uniqueness:
+  max_combination_size: 4
+  # Uniqueness is measured within the sample and falls as the sample grows; these subsample sizes
+  # (those smaller than the sample) are reported alongside the full sample to show the trend.
+  sample_sizes: [500, 1000]
+  subsample_draws: 20
+  # Model-based estimate among all eligible users (uniqueness_population.csv).
+  population_prior: 0.5          # pseudo-users added to each cell count, so a value seen once is not "never"
+  population_bootstrap_reps: 200
+  linkage_splits: 20             # random split-half repetitions averaged in linkage.csv
+
+identifiability:
+  min_cell: 10                   # counts of 1..min_cell-1 users are blanked in every published table

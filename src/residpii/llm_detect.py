@@ -51,8 +51,18 @@ def _turns(paths: Paths, cfg: dict, ds: str) -> pd.DataFrame:
     t["key"] = t["conversation_id"].astype(str) + "#" + t["turn_index"].astype(str)
     # Seeded conversation-level shuffle: an early stop leaves a random subset of whole conversations.
     convs = t["conversation_id"].drop_duplicates().to_numpy()
-    order = {c: i for i, c in enumerate(np.random.default_rng(cfg["seed"] + zlib.crc32(ds.encode()) % 997).permutation(convs))}
-    return t.assign(_o=t["conversation_id"].map(order)).sort_values(["_o", "turn_index"]).drop(columns="_o")
+    rng = np.random.default_rng(cfg["seed"] + zlib.crc32(ds.encode()) % 997)
+    order = {c: i for i, c in enumerate(rng.permutation(convs))}
+    t = t.assign(_o=t["conversation_id"].map(order))
+    if cfg["sampling"].get("mode") == "user_level":
+        # Stage 2 needs whole users: shuffle users, keep each user's conversations together, so an
+        # early stop leaves a random subset of complete users.
+        users = pd.read_parquet(paths.work / f"sample_{ds}.parquet", columns=["conversation_id", "user_key"])
+        user = t["conversation_id"].map(users.set_index("conversation_id")["user_key"])
+        u_order = {u: i for i, u in enumerate(rng.permutation(user.dropna().unique()))}
+        t = t.assign(_u=user.map(u_order).fillna(-1))
+        return t.sort_values(["_u", "_o", "turn_index"]).drop(columns=["_o", "_u"])
+    return t.sort_values(["_o", "turn_index"]).drop(columns="_o")
 
 
 def load_records(paths: Paths, ds: str) -> dict[str, dict]:
