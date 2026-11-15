@@ -1,0 +1,322 @@
+{"item_id": "i0001", "spans": [], "attributes": [{"attribute": "occupation", "kind": "inferred", "value": "programmer"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-11T18:08:17.250879+00:00"}
+{"item_id": "i0001", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:02:59.667637+00:00"}
+{"item_id": "i0002", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:03:00.558859+00:00"}
+{"item_id": "i0003", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:03:03.258348+00:00"}
+{"item_id": "i0004", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:03:12.213321+00:00"}
+{"item_id": "i0005", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:03:34.550774+00:00"}
+{"item_id": "i0006", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:03:51.795771+00:00"}
+{"item_id": "i0007", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:04:00.195429+00:00"}
+{"item_id": "i0008", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:04:19.253845+00:00"}
+{"item_id": "i0009", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:04:22.557107+00:00"}
+{"item_id": "i0010", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:03.117402+00:00"}
+{"item_id": "i0011", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:08.120861+00:00"}
+{"item_id": "i0012", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:19.222650+00:00"}
+{"item_id": "i0013", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:21.156241+00:00"}
+{"item_id": "i0014", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:23.636949+00:00"}
+{"item_id": "i0015", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:26.656122+00:00"}
+{"item_id": "i0016", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:41.452397+00:00"}
+{"item_id": "i0017", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:05:44.289573+00:00"}
+{"item_id": "i0018", "spans": [{"start": 46, "end": 50, "category": "name", "whose": "fictional"}, {"start": 211, "end": 223, "category": "organization", "whose": "fictional"}, {"start": 271, "end": 295, "category": "occupation", "whose": "fictional"}, {"start": 304, "end": 307, "category": "organization", "whose": "fictional"}, {"start": 355, "end": 372, "category": "occupation", "whose": "fictional"}, {"start": 381, "end": 384, "category": "organization", "whose": "fictional"}, {"start": 432, "end": 455, "category": "occupation", "whose": "fictional"}, {"start": 466, "end": 490, "category": "organization", "whose": "fictional"}, {"start": 538, "end": 574, "category": "occupation", "whose": "fictional"}, {"start": 584, "end": 596, "category": "organization", "whose": "fictional"}, {"start": 644, "end": 669, "category": "occupation", "whose": "fictional"}, {"start": 826, "end": 838, "category": "location", "whose": "self"}, {"start": 842, "end": 855, "category": "date", "whose": "self"}, {"start": 1038, "end": 1062, "category": "date", "whose": "self"}], "attributes": [{"attribute": "location_country", "kind": "stated", "value": "USA"}, {"attribute": "location_region", "kind": "stated", "value": "California"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:12:42.424596+00:00"}
+{"item_id": "i0019", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:12:49.939902+00:00"}
+{"item_id": "i0020", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:12:52.028182+00:00"}
+{"item_id": "i0021", "spans": [{"start": 376, "end": 386, "category": "occupation", "whose": "unclear"}, {"start": 396, "end": 404, "category": "location", "whose": "unclear"}], "attributes": [{"attribute": "occupation", "kind": "stated", "value": "Journalist"}, {"attribute": "location_region", "kind": "stated", "value": "New York"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:14:23.033167+00:00"}
+{"item_id": "i0022", "spans": [{"start": 28, "end": 43, "category": "name", "whose": "fictional"}, {"start": 45, "end": 47, "category": "age", "whose": "fictional"}, {"start": 63, "end": 76, "category": "occupation", "whose": "fictional"}, {"start": 103, "end": 107, "category": "location", "whose": "fictional"}, {"start": 183, "end": 197, "category": "name", "whose": "fictional"}, {"start": 199, "end": 204, "category": "name", "whose": "fictional"}, {"start": 519, "end": 540, "category": "organization", "whose": "fictional"}, {"start": 681, "end": 685, "category": "date", "whose": "fictional"}, {"start": 716, "end": 725, "category": "date", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:16:12.935144+00:00"}
+{"item_id": "i0023", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:16:42.264769+00:00"}
+{"item_id": "i0024", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:19:36.355284+00:00"}
+{"item_id": "i0025", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:19:39.481490+00:00"}
+{"item_id": "i0026", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:19:43.877977+00:00"}
+{"item_id": "i0027", "spans": [{"start": 45, "end": 49, "category": "nrp", "whose": "self"}], "attributes": [{"attribute": "nationality_ethnicity", "kind": "inferred", "value": "South Asian"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:07.496016+00:00"}
+{"item_id": "i0028", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:11.434464+00:00"}
+{"item_id": "i0029", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:12.834296+00:00"}
+{"item_id": "i0030", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:14.618034+00:00"}
+{"item_id": "i0031", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:18.370734+00:00"}
+{"item_id": "i0032", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:23.316517+00:00"}
+{"item_id": "i0033", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:24.749080+00:00"}
+{"item_id": "i0034", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:30.204102+00:00"}
+{"item_id": "i0035", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T22:21:36.537457+00:00"}
+{"item_id": "i0036", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:03.793896+00:00"}
+{"item_id": "i0037", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:07.384538+00:00"}
+{"item_id": "i0038", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:12.365415+00:00"}
+{"item_id": "i0039", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:23.286214+00:00"}
+{"item_id": "i0040", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:25.015093+00:00"}
+{"item_id": "i0041", "spans": [{"start": 0, "end": 13, "category": "name", "whose": "public_figure"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:39.868140+00:00"}
+{"item_id": "i0042", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:42.380907+00:00"}
+{"item_id": "i0043", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:43.414643+00:00"}
+{"item_id": "i0044", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:08:58.731714+00:00"}
+{"item_id": "i0045", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:09:08.281228+00:00"}
+{"item_id": "i0046", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:09:09.399085+00:00"}
+{"item_id": "i0047", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:11:03.035120+00:00"}
+{"item_id": "i0048", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:11:05.183422+00:00"}
+{"item_id": "i0049", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:11:07.630638+00:00"}
+{"item_id": "i0050", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:11:09.028922+00:00"}
+{"item_id": "i0051", "spans": [{"start": 68, "end": 74, "category": "name", "whose": "third_party"}, {"start": 80, "end": 100, "category": "organization", "whose": "third_party"}, {"start": 101, "end": 114, "category": "occupation", "whose": "third_party"}, {"start": 133, "end": 150, "category": "occupation", "whose": "self"}, {"start": 166, "end": 209, "category": "occupation", "whose": "third_party"}, {"start": 213, "end": 223, "category": "location", "whose": "unclear"}], "attributes": [{"attribute": "location_region", "kind": "stated", "value": "Nur-Sultan"}, {"attribute": "occupation", "kind": "inferred", "value": "Presales Engineer"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:13:15.191483+00:00"}
+{"item_id": "i0052", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:13:17.700442+00:00"}
+{"item_id": "i0053", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:13:36.701270+00:00"}
+{"item_id": "i0054", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:14:07.422086+00:00"}
+{"item_id": "i0055", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:14:11.700749+00:00"}
+{"item_id": "i0056", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:14:16.201363+00:00"}
+{"item_id": "i0057", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:17:00.055076+00:00"}
+{"item_id": "i0058", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:18:44.536870+00:00"}
+{"item_id": "i0059", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:24:27.277816+00:00"}
+{"item_id": "i0060", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:25:22.099842+00:00"}
+{"item_id": "i0061", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:25:24.866306+00:00"}
+{"item_id": "i0062", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:25:29.752167+00:00"}
+{"item_id": "i0063", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:04.098847+00:00"}
+{"item_id": "i0064", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:05.412325+00:00"}
+{"item_id": "i0065", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:06.467543+00:00"}
+{"item_id": "i0066", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:07.379215+00:00"}
+{"item_id": "i0067", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:08.969183+00:00"}
+{"item_id": "i0068", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:13.016608+00:00"}
+{"item_id": "i0069", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:14.315309+00:00"}
+{"item_id": "i0070", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:16.280997+00:00"}
+{"item_id": "i0071", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:27:17.800520+00:00"}
+{"item_id": "i0072", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:11.856095+00:00"}
+{"item_id": "i0073", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:19.529227+00:00"}
+{"item_id": "i0073", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:22.664971+00:00"}
+{"item_id": "i0074", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:39.818839+00:00"}
+{"item_id": "i0075", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:45.666038+00:00"}
+{"item_id": "i0076", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:46.432159+00:00"}
+{"item_id": "i0077", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:29:47.930610+00:00"}
+{"item_id": "i0078", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:31:26.157336+00:00"}
+{"item_id": "i0079", "spans": [{"start": 45, "end": 51, "category": "location", "whose": "self"}], "attributes": [{"attribute": "location_country", "kind": "stated", "value": "canada"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:31:51.060125+00:00"}
+{"item_id": "i0080", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:31:52.598835+00:00"}
+{"item_id": "i0081", "spans": [{"start": 10, "end": 43, "category": "occupation", "whose": "fictional"}], "attributes": [{"attribute": "occupation", "kind": "stated", "value": "kindergarten curriculum developer"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:32:29.478759+00:00"}
+{"item_id": "i0082", "spans": [{"start": 39, "end": 50, "category": "location", "whose": "not_personal"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:32:50.438973+00:00"}
+{"item_id": "i0083", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:32:54.335799+00:00"}
+{"item_id": "i0084", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:32:56.468077+00:00"}
+{"item_id": "i0085", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:33:00.900037+00:00"}
+{"item_id": "i0086", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:33:09.341896+00:00"}
+{"item_id": "i0087", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:33:22.773080+00:00"}
+{"item_id": "i0088", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:34:12.072184+00:00"}
+{"item_id": "i0089", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:34:13.782332+00:00"}
+{"item_id": "i0090", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:34:14.733020+00:00"}
+{"item_id": "i0089", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:34:21.348212+00:00"}
+{"item_id": "i0091", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:34:33.998230+00:00"}
+{"item_id": "i0091", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:34:36.915434+00:00"}
+{"item_id": "i0092", "spans": [{"start": 239, "end": 246, "category": "location", "whose": "unclear"}, {"start": 254, "end": 260, "category": "location", "whose": "unclear"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:36:24.971781+00:00"}
+{"item_id": "i0093", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:36:31.449195+00:00"}
+{"item_id": "i0094", "spans": [{"start": 98, "end": 112, "category": "name", "whose": "public_figure"}, {"start": 117, "end": 130, "category": "name", "whose": "public_figure"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:36:58.556398+00:00"}
+{"item_id": "i0095", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:41:22.934180+00:00"}
+{"item_id": "i0096", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:41:24.837645+00:00"}
+{"item_id": "i0097", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:41:27.687722+00:00"}
+{"item_id": "i0098", "spans": [{"start": 0, "end": 5, "category": "name", "whose": "fictional"}, {"start": 23, "end": 35, "category": "name", "whose": "fictional"}, {"start": 228, "end": 233, "category": "name", "whose": "fictional"}, {"start": 243, "end": 249, "category": "name", "whose": "fictional"}, {"start": 525, "end": 529, "category": "name", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:42:40.063083+00:00"}
+{"item_id": "i0099", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:42:48.921078+00:00"}
+{"item_id": "i0100", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:42:51.137361+00:00"}
+{"item_id": "i0101", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:42:57.019861+00:00"}
+{"item_id": "i0102", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:42:59.154874+00:00"}
+{"item_id": "i0103", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:00.419837+00:00"}
+{"item_id": "i0104", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:01.705021+00:00"}
+{"item_id": "i0105", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:02.788555+00:00"}
+{"item_id": "i0106", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:03.687795+00:00"}
+{"item_id": "i0107", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:04.854176+00:00"}
+{"item_id": "i0108", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:05.671423+00:00"}
+{"item_id": "i0109", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:06.754968+00:00"}
+{"item_id": "i0110", "spans": [{"start": 23, "end": 29, "category": "name", "whose": "third_party"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:43.781070+00:00"}
+{"item_id": "i0111", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:47.604380+00:00"}
+{"item_id": "i0112", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:53.788472+00:00"}
+{"item_id": "i0113", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:43:55.137582+00:00"}
+{"item_id": "i0114", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:06.887907+00:00"}
+{"item_id": "i0115", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:10.876189+00:00"}
+{"item_id": "i0116", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:18.720811+00:00"}
+{"item_id": "i0117", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:21.620474+00:00"}
+{"item_id": "i0118", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:30.504672+00:00"}
+{"item_id": "i0119", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:33.687879+00:00"}
+{"item_id": "i0120", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:34.537511+00:00"}
+{"item_id": "i0121", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:38.353950+00:00"}
+{"item_id": "i0122", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:39.688184+00:00"}
+{"item_id": "i0123", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:40.805603+00:00"}
+{"item_id": "i0124", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:42.321056+00:00"}
+{"item_id": "i0125", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:43.804981+00:00"}
+{"item_id": "i0126", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:45.955903+00:00"}
+{"item_id": "i0127", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:47.888329+00:00"}
+{"item_id": "i0128", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:48.804559+00:00"}
+{"item_id": "i0129", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:49.888139+00:00"}
+{"item_id": "i0130", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:51.804601+00:00"}
+{"item_id": "i0131", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:44:54.704202+00:00"}
+{"item_id": "i0132", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:45:01.070379+00:00"}
+{"item_id": "i0132", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:45:04.586450+00:00"}
+{"item_id": "i0133", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:45:12.291837+00:00"}
+{"item_id": "i0134", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:45:13.472089+00:00"}
+{"item_id": "i0135", "spans": [{"start": 45, "end": 60, "category": "ip_address", "whose": "self"}, {"start": 61, "end": 74, "category": "ip_address", "whose": "self"}, {"start": 144, "end": 157, "category": "ip_address", "whose": "self"}, {"start": 394, "end": 405, "category": "ip_address", "whose": "self"}, {"start": 431, "end": 443, "category": "ip_address", "whose": "self"}, {"start": 511, "end": 523, "category": "ip_address", "whose": "self"}, {"start": 573, "end": 586, "category": "ip_address", "whose": "self"}, {"start": 630, "end": 640, "category": "ip_address", "whose": "self"}, {"start": 642, "end": 654, "category": "ip_address", "whose": "self"}, {"start": 659, "end": 670, "category": "ip_address", "whose": "self"}, {"start": 702, "end": 716, "category": "ip_address", "whose": "self"}, {"start": 759, "end": 774, "category": "ip_address", "whose": "self"}, {"start": 857, "end": 869, "category": "ip_address", "whose": "self"}, {"start": 942, "end": 954, "category": "ip_address", "whose": "self"}, {"start": 1004, "end": 1017, "category": "ip_address", "whose": "self"}, {"start": 1084, "end": 1098, "category": "ip_address", "whose": "self"}, {"start": 1165, "end": 1179, "category": "ip_address", "whose": "self"}, {"start": 1183, "end": 1195, "category": "ip_address", "whose": "self"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:02.010144+00:00"}
+{"item_id": "i0136", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:04.604828+00:00"}
+{"item_id": "i0137", "spans": [{"start": 76, "end": 91, "category": "name", "whose": "fictional"}, {"start": 181, "end": 188, "category": "name", "whose": "fictional"}, {"start": 358, "end": 372, "category": "location", "whose": "fictional"}, {"start": 396, "end": 400, "category": "name", "whose": "fictional"}, {"start": 417, "end": 428, "category": "name", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:42.738423+00:00"}
+{"item_id": "i0138", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:44.221826+00:00"}
+{"item_id": "i0139", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:44.905388+00:00"}
+{"item_id": "i0140", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:45.674599+00:00"}
+{"item_id": "i0141", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:47.271608+00:00"}
+{"item_id": "i0142", "spans": [{"start": 0, "end": 5, "category": "name", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:47:59.488306+00:00"}
+{"item_id": "i0143", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:48:02.972295+00:00"}
+{"item_id": "i0144", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:48:03.638853+00:00"}
+{"item_id": "i0144", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:48:07.373568+00:00"}
+{"item_id": "i0145", "spans": [], "attributes": [{"attribute": "occupation", "kind": "stated", "value": ""}], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:49:29.970344+00:00"}
+{"item_id": "i0146", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:49:32.454302+00:00"}
+{"item_id": "i0147", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:49:33.456949+00:00"}
+{"item_id": "i0147", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:49:36.657124+00:00"}
+{"item_id": "i0148", "spans": [{"start": 72, "end": 147, "category": "health", "whose": "self"}, {"start": 514, "end": 523, "category": "health", "whose": "self"}], "attributes": [{"attribute": "health", "kind": "stated", "value": "ear problems"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:50:51.367654+00:00"}
+{"item_id": "i0149", "spans": [{"start": 106, "end": 112, "category": "name", "whose": "third_party"}, {"start": 222, "end": 229, "category": "name", "whose": "third_party"}, {"start": 336, "end": 348, "category": "name", "whose": "third_party"}, {"start": 349, "end": 373, "category": "organization", "whose": "third_party"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:51:50.624339+00:00"}
+{"item_id": "i0150", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:51:56.592291+00:00"}
+{"item_id": "i0151", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:51:59.236696+00:00"}
+{"item_id": "i0152", "spans": [{"start": 28, "end": 40, "category": "occupation", "whose": "self"}, {"start": 63, "end": 94, "category": "education", "whose": "self"}], "attributes": [{"attribute": "occupation", "kind": "inferred", "value": "law student"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:52:41.512156+00:00"}
+{"item_id": "i0153", "spans": [{"start": 57, "end": 159, "category": "occupation", "whose": "self"}], "attributes": [{"attribute": "occupation", "kind": "stated", "value": "business owner"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:53:15.944856+00:00"}
+{"item_id": "i0154", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:53:54.411491+00:00"}
+{"item_id": "i0155", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:53:55.786769+00:00"}
+{"item_id": "i0156", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:53:56.320105+00:00"}
+{"item_id": "i0157", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:53:57.707279+00:00"}
+{"item_id": "i0157", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:11.979207+00:00"}
+{"item_id": "i0158", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:16.141288+00:00"}
+{"item_id": "i0159", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:18.891423+00:00"}
+{"item_id": "i0160", "spans": [{"start": 71, "end": 84, "category": "occupation", "whose": "self"}, {"start": 92, "end": 98, "category": "username_handle", "whose": "self"}], "attributes": [{"attribute": "occupation", "kind": "stated", "value": "web developer"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:45.027553+00:00"}
+{"item_id": "i0161", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:47.140520+00:00"}
+{"item_id": "i0162", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:48.157788+00:00"}
+{"item_id": "i0163", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:54:54.140805+00:00"}
+{"item_id": "i0164", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:55:29.497733+00:00"}
+{"item_id": "i0165", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:55:31.423951+00:00"}
+{"item_id": "i0166", "spans": [{"start": 532, "end": 534, "category": "name", "whose": "fictional"}, {"start": 946, "end": 951, "category": "name", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:55:50.886800+00:00"}
+{"item_id": "i0167", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:55:57.742033+00:00"}
+{"item_id": "i0168", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:04.824219+00:00"}
+{"item_id": "i0169", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:06.958171+00:00"}
+{"item_id": "i0170", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:11.171358+00:00"}
+{"item_id": "i0171", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:14.308283+00:00"}
+{"item_id": "i0172", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:15.772265+00:00"}
+{"item_id": "i0173", "spans": [{"start": 17, "end": 24, "category": "name", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:23.557689+00:00"}
+{"item_id": "i0174", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:36.907635+00:00"}
+{"item_id": "i0175", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:39.774797+00:00"}
+{"item_id": "i0176", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:40.607458+00:00"}
+{"item_id": "i0177", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:45.173656+00:00"}
+{"item_id": "i0178", "spans": [{"start": 34, "end": 40, "category": "name", "whose": "unclear"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:56:55.907223+00:00"}
+{"item_id": "i0179", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:01.856815+00:00"}
+{"item_id": "i0180", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:03.891320+00:00"}
+{"item_id": "i0181", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:07.541038+00:00"}
+{"item_id": "i0182", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:08.840621+00:00"}
+{"item_id": "i0183", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:20.258026+00:00"}
+{"item_id": "i0184", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:23.206802+00:00"}
+{"item_id": "i0185", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:24.425331+00:00"}
+{"item_id": "i0186", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:57:25.074302+00:00"}
+{"item_id": "i0187", "spans": [{"start": 154, "end": 160, "category": "location", "whose": "fictional"}, {"start": 397, "end": 401, "category": "location", "whose": "fictional"}], "attributes": [{"attribute": "occupation", "kind": "inferred", "value": "author"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:58:07.658662+00:00"}
+{"item_id": "i0188", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:58:11.958381+00:00"}
+{"item_id": "i0189", "spans": [{"start": 9, "end": 15, "category": "name", "whose": "third_party"}, {"start": 21, "end": 31, "category": "education", "whose": "third_party"}, {"start": 21, "end": 39, "category": "occupation", "whose": "third_party"}, {"start": 92, "end": 111, "category": "health", "whose": "third_party"}, {"start": 224, "end": 245, "category": "date", "whose": "third_party"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:35.375643+00:00"}
+{"item_id": "i0190", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:36.991767+00:00"}
+{"item_id": "i0191", "spans": [{"start": 18, "end": 35, "category": "occupation", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:51.277065+00:00"}
+{"item_id": "i0192", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:52.941418+00:00"}
+{"item_id": "i0193", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:54.525242+00:00"}
+{"item_id": "i0194", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:57.991607+00:00"}
+{"item_id": "i0195", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-12T23:59:59.141433+00:00"}
+{"item_id": "i0196", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:00:01.257841+00:00"}
+{"item_id": "i0197", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:00:02.475615+00:00"}
+{"item_id": "i0197", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:00:37.064388+00:00"}
+{"item_id": "i0198", "spans": [{"start": 173, "end": 182, "category": "location", "whose": "unclear"}, {"start": 258, "end": 272, "category": "ip_address", "whose": "unclear"}, {"start": 292, "end": 305, "category": "username_handle", "whose": "unclear"}, {"start": 337, "end": 343, "category": "api_key_token", "whose": "unclear"}, {"start": 465, "end": 476, "category": "username_handle", "whose": "unclear"}, {"start": 532, "end": 570, "category": "personal_url", "whose": "unclear"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:02:48.196500+00:00"}
+{"item_id": "i0199", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:02:51.249624+00:00"}
+{"item_id": "i0200", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:02:58.749303+00:00"}
+{"item_id": "i0201", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:03:09.749660+00:00"}
+{"item_id": "i0202", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:03:12.251220+00:00"}
+{"item_id": "i0202", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:03:16.099888+00:00"}
+{"item_id": "i0203", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:03:17.480434+00:00"}
+{"item_id": "i0204", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:03:40.138785+00:00"}
+{"item_id": "i0205", "spans": [{"start": 41, "end": 43, "category": "age", "whose": "fictional"}, {"start": 81, "end": 88, "category": "location", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:04:04.751712+00:00"}
+{"item_id": "i0206", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:05.069382+00:00"}
+{"item_id": "i0207", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:07.362773+00:00"}
+{"item_id": "i0208", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:16.251061+00:00"}
+{"item_id": "i0209", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:29.916098+00:00"}
+{"item_id": "i0210", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:31.066166+00:00"}
+{"item_id": "i0211", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:33.812844+00:00"}
+{"item_id": "i0212", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:36.763474+00:00"}
+{"item_id": "i0213", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:05:47.881250+00:00"}
+{"item_id": "i0214", "spans": [{"start": 17, "end": 23, "category": "occupation", "whose": "self"}, {"start": 25, "end": 41, "category": "occupation", "whose": "self"}, {"start": 47, "end": 73, "category": "occupation", "whose": "self"}, {"start": 312, "end": 324, "category": "organization", "whose": "self"}, {"start": 318, "end": 324, "category": "location", "whose": "self"}, {"start": 352, "end": 389, "category": "education", "whose": "self"}, {"start": 424, "end": 501, "category": "education", "whose": "self"}, {"start": 583, "end": 589, "category": "name", "whose": "third_party"}, {"start": 658, "end": 663, "category": "location", "whose": "third_party"}], "attributes": [{"attribute": "occupation", "kind": "stated", "value": "farmer"}, {"attribute": "occupation", "kind": "stated", "value": "environmentalist"}, {"attribute": "occupation", "kind": "stated", "value": "forward-thinking innovator"}, {"attribute": "employer", "kind": "stated", "value": "Msitu Africa"}, {"attribute": "education", "kind": "stated", "value": "International Business Administration"}, {"attribute": "relationship", "kind": "stated", "value": "Wambui"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:08:43.164531+00:00"}
+{"item_id": "i0215", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:08:45.883791+00:00"}
+{"item_id": "i0216", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:08:48.083105+00:00"}
+{"item_id": "i0217", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:08:50.150853+00:00"}
+{"item_id": "i0218", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:08:51.446373+00:00"}
+{"item_id": "i0218", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:06.201186+00:00"}
+{"item_id": "i0219", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:10.847307+00:00"}
+{"item_id": "i0220", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:14.914599+00:00"}
+{"item_id": "i0221", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:15.766050+00:00"}
+{"item_id": "i0222", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:19.082164+00:00"}
+{"item_id": "i0223", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:19.780608+00:00"}
+{"item_id": "i0224", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:21.615353+00:00"}
+{"item_id": "i0225", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:23.466359+00:00"}
+{"item_id": "i0226", "spans": [{"start": 54, "end": 57, "category": "name", "whose": "fictional"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:09:57.511203+00:00"}
+{"item_id": "i0227", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:10:02.346319+00:00"}
+{"item_id": "i0228", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:10:08.988356+00:00"}
+{"item_id": "i0229", "spans": [{"start": 117, "end": 137, "category": "education", "whose": "self"}, {"start": 142, "end": 160, "category": "education", "whose": "self"}], "attributes": [{"attribute": "education", "kind": "stated", "value": "architectural design"}, {"attribute": "education", "kind": "stated", "value": "project management"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:11:42.210055+00:00"}
+{"item_id": "i0230", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:11:47.046197+00:00"}
+{"item_id": "i0231", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:11:48.229936+00:00"}
+{"item_id": "i0232", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:11:48.930334+00:00"}
+{"item_id": "i0233", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:11:50.183423+00:00"}
+{"item_id": "i0234", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:11:57.982503+00:00"}
+{"item_id": "i0235", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:01.350261+00:00"}
+{"item_id": "i0236", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:03.332144+00:00"}
+{"item_id": "i0237", "spans": [{"start": 444, "end": 464, "category": "email", "whose": "unclear"}, {"start": 627, "end": 638, "category": "username_handle", "whose": "unclear"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:46.705498+00:00"}
+{"item_id": "i0238", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:47.718019+00:00"}
+{"item_id": "i0239", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:48.616123+00:00"}
+{"item_id": "i0240", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:50.020155+00:00"}
+{"item_id": "i0241", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:51.984577+00:00"}
+{"item_id": "i0242", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:53.717224+00:00"}
+{"item_id": "i0243", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:57.099457+00:00"}
+{"item_id": "i0244", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:12:58.848464+00:00"}
+{"item_id": "i0245", "spans": [{"start": 39, "end": 44, "category": "location", "whose": "self"}, {"start": 60, "end": 65, "category": "location", "whose": "self"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:23.223283+00:00"}
+{"item_id": "i0246", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:24.164631+00:00"}
+{"item_id": "i0247", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:30.401710+00:00"}
+{"item_id": "i0248", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:31.366693+00:00"}
+{"item_id": "i0249", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:34.450741+00:00"}
+{"item_id": "i0250", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:36.766303+00:00"}
+{"item_id": "i0251", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:39.733500+00:00"}
+{"item_id": "i0251", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:45.267376+00:00"}
+{"item_id": "i0252", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:56.366786+00:00"}
+{"item_id": "i0253", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:13:57.299768+00:00"}
+{"item_id": "i0254", "spans": [{"start": 7, "end": 23, "category": "occupation", "whose": "self"}], "attributes": [{"attribute": "occupation", "kind": "stated", "value": "marketing agency"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:17.034308+00:00"}
+{"item_id": "i0255", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:25.484308+00:00"}
+{"item_id": "i0256", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:27.704855+00:00"}
+{"item_id": "i0257", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:31.166300+00:00"}
+{"item_id": "i0258", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:33.433799+00:00"}
+{"item_id": "i0259", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:35.434010+00:00"}
+{"item_id": "i0260", "spans": [{"start": 7, "end": 31, "category": "name", "whose": "public_figure"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:42.417001+00:00"}
+{"item_id": "i0261", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:43.499102+00:00"}
+{"item_id": "i0262", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:14:44.250390+00:00"}
+{"item_id": "i0263", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:09.418081+00:00"}
+{"item_id": "i0264", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:10.417056+00:00"}
+{"item_id": "i0265", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:16.340561+00:00"}
+{"item_id": "i0266", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:38.568339+00:00"}
+{"item_id": "i0267", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:41.048845+00:00"}
+{"item_id": "i0268", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:44.649930+00:00"}
+{"item_id": "i0269", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:45.881911+00:00"}
+{"item_id": "i0270", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:47.112886+00:00"}
+{"item_id": "i0271", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:47.983459+00:00"}
+{"item_id": "i0272", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:49.232229+00:00"}
+{"item_id": "i0273", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:50.032941+00:00"}
+{"item_id": "i0274", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:50.847115+00:00"}
+{"item_id": "i0275", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:51.680616+00:00"}
+{"item_id": "i0276", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:56.049996+00:00"}
+{"item_id": "i0277", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:57.067027+00:00"}
+{"item_id": "i0278", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:15:58.500313+00:00"}
+{"item_id": "i0279", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:07.183708+00:00"}
+{"item_id": "i0280", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:08.529311+00:00"}
+{"item_id": "i0281", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:09.263768+00:00"}
+{"item_id": "i0282", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:16.184136+00:00"}
+{"item_id": "i0283", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:22.153801+00:00"}
+{"item_id": "i0284", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:23.496417+00:00"}
+{"item_id": "i0285", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:24.380120+00:00"}
+{"item_id": "i0286", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:25.266787+00:00"}
+{"item_id": "i0287", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:26.180088+00:00"}
+{"item_id": "i0288", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:29.349101+00:00"}
+{"item_id": "i0289", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:30.531999+00:00"}
+{"item_id": "i0290", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:32.231031+00:00"}
+{"item_id": "i0290", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:35.583516+00:00"}
+{"item_id": "i0291", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:37.434135+00:00"}
+{"item_id": "i0291", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:40.788401+00:00"}
+{"item_id": "i0292", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:41.516466+00:00"}
+{"item_id": "i0293", "spans": [], "attributes": [], "skip": true, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:43.883675+00:00"}
+{"item_id": "i0294", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:45.301166+00:00"}
+{"item_id": "i0295", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:49.200301+00:00"}
+{"item_id": "i0296", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:16:53.734280+00:00"}
+{"item_id": "i0297", "spans": [{"start": 42, "end": 60, "category": "organization", "whose": "self"}], "attributes": [{"attribute": "employer", "kind": "stated", "value": "Blackbird Ventures"}], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:17:17.871586+00:00"}
+{"item_id": "i0298", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:17:22.449995+00:00"}
+{"item_id": "i0299", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:17:24.465052+00:00"}
+{"item_id": "i0300", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:17:25.150786+00:00"}
+{"item_id": "i0300", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:17:27.315698+00:00"}
+{"item_id": "i0044", "spans": [{"start": 66, "end": 105, "category": "api_key_token", "whose": "self"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:58:49.366622+00:00"}
+{"item_id": "i0044", "spans": [{"start": 66, "end": 105, "category": "api_key_token", "whose": "self"}], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:59:06.899927+00:00"}
+{"item_id": "i0045", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:59:13.485985+00:00"}
+{"item_id": "i0046", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:59:14.532759+00:00"}
+{"item_id": "i0047", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:59:15.398159+00:00"}
+{"item_id": "i0048", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:59:16.431738+00:00"}
+{"item_id": "i0049", "spans": [], "attributes": [], "skip": false, "note": "", "annotator": "ethan", "saved_at": "2026-11-13T00:59:17.396560+00:00"}
