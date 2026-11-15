@@ -7,6 +7,12 @@ Two layers, applied on top of layer 1 (patterns) in `sanitize.py`:
                        (where most names are characters or identifiers), unless the name sits in a
                        self-introduction or a letter frame ("my name is", "Dear", "Regards,")
                      - @handles, social-profile URLs, street addresses, dates of birth
+                     - file paths that reveal the writer: home directories (/Users/<name>/...,
+                       /home/<name>/..., C:\\Users\\<name>\\...), Windows absolute paths and deep
+                       project paths become [PATH]; system paths (/usr/lib/...) and short web routes stay
+                     Code is not mistaken for people: no handle matches on decorators (@app.route) or in
+                     code, and no name/place/organisation rules on code-shaped tokens (np.array, my_var,
+                     getName) or inside ``` blocks and `inline code`.
   rules_generalize   + quasi-identifiers in personal sentences (first person, or any sentence of a
                      CV / letter / application turn), generalised from lookup tables
                      (configs/generalization.yaml):
@@ -37,6 +43,19 @@ SELF_OR_LETTER = re.compile(
 # internal address pasted with a config still describes the writer's network).
 IPV4 = re.compile(r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b")
 HANDLE = re.compile(r"(?<![\w.@])@[A-Za-z0-9_]{3,30}\b")
+HANDLE_CUE = re.compile(r"(?i)\b(?:twitter|instagram|insta|ig|tiktok|telegram|discord|handle|username|user name|"
+                        r"follow(?: me)?|dm|x\.com|threads|snapchat|reddit)\b[^\n]{0,25}\Z")
+# File paths. Unix: two or more segments after a root, ~ or ./; Windows: drive or UNC root.
+UNIX_PATH = re.compile(r"(?<![\w:/.])(?:~|\.{1,2})?/(?:[\w.\-@+]+/)+[\w.\-@+]*")
+# Folder segments may contain spaces ("C:\\Users\\Maria Lopez\\"): a segment ends at the next backslash.
+WIN_PATH = re.compile(r"(?:\b[A-Za-z]:|\\\\[\w.\-]+)\\(?:[^\\\n:*?\"<>|'`]+\\)*[^\\\s:*?\"<>|'`]*")
+HOME_SEGMENT = re.compile(r"(?i)(?:^|[/\\])(?:Users|home|Documents and Settings|mnt/[a-z]/Users)[/\\](?!Shared\b|Public\b|Default\b)[^/\\\s]+")
+SYSTEM_ROOTS = {"usr", "bin", "sbin", "lib", "lib64", "etc", "opt", "var", "tmp", "dev", "proc", "sys", "boot",
+                "run", "srv", "system", "library", "applications", "private", "cores", "nix", "snap"}
+ROUTE_ROOTS = {"api", "v1", "v2", "v3", "static", "assets", "public", "src", "app", "dist", "build", "node_modules",
+               "images", "img", "css", "js", "auth", "admin", "login", "graphql", "docs", "index", "lib", "include"}
+CODE_BLOCK = re.compile(r"```.*?(?:```|\Z)|`[^`\n]+`", re.S)
+CODE_TOKEN = re.compile(r"[._()\[\]{}=<>/\\#$]|[a-z][A-Z]|^[a-z]+\d")
 PROFILE_URL = re.compile(
     r"(?i)\b(?:https?://)?(?:www\.)?(?:linkedin\.com/in|github\.com|facebook\.com|fb\.com|instagram\.com"
     r"|twitter\.com|x\.com|t\.me|tiktok\.com/@|youtube\.com/(?:@|c/|channel/|user/)|medium\.com/@)"
@@ -92,7 +111,52 @@ def _edit(s: int, e: int, category: str, replacement: str | None = None) -> dict
             "replacement": replacement if replacement is not None else f"[{category.upper()}]"}
 
 
-DEFAULT_OPTIONS = {"names_in_first_person": True, "organizations_in_first_person": False}
+DEFAULT_OPTIONS = {"names_in_first_person": True, "organizations_in_first_person": False, "paths": True}
+
+
+def code_spans(text: str) -> list[tuple[int, int]]:
+    """Character ranges inside ``` fences or `inline code`."""
+    return [m.span() for m in CODE_BLOCK.finditer(text)]
+
+
+def _inside(pos: int, ranges: list[tuple[int, int]]) -> bool:
+    return any(a <= pos < b for a, b in ranges)
+
+
+def looks_like_code(token: str) -> bool:
+    """np.array, df.head(), my_var, getName, x1: not a person, place or organisation."""
+    return CODE_TOKEN.search(token.strip()) is not None
+
+
+def code_context(text: str, start: int, end: int) -> bool:
+    """Is the span code? Its own characters, or code punctuation glued to it: `np.` + span, span + `.attr`,
+    span + `(` or `_`. A sentence-ending full stop or a comma does not count ("I live in Leeds.")."""
+    if looks_like_code(text[start:end]):
+        return True
+    before, after = text[start - 1:start] if start else "", text[end:end + 2]
+    return (before in (".", "_") or after[:1] in ("(", "_")
+            or (after[:1] == "." and after[1:2].isalnum()))
+
+
+def path_edits(text: str) -> list[dict]:
+    """File paths that can reveal the writer. Home directories always; Windows absolute paths; Unix
+    paths of three or more segments unless they start at a system root or a common web route."""
+    edits = []
+    for m in WIN_PATH.finditer(text):
+        segs = [x for x in re.split(r"[\\]+", m.group()) if x]
+        system = len(segs) > 1 and segs[1].lower() in {"windows", "program files", "program files (x86)", "programdata"}
+        if HOME_SEGMENT.search(m.group()) or (len(segs) >= 3 and not system):
+            edits.append(_edit(m.start(), m.end(), "file_path", "[PATH]"))
+    for m in UNIX_PATH.finditer(text):
+        p = m.group()
+        if text[max(0, m.start() - 3):m.start()].endswith(("://", ":/")) or re.search(r"\w\.\w+$", text[max(0, m.start() - 40):m.start()]):
+            continue   # part of a URL (scheme://host/path or host/path)
+        segs = [x for x in p.split("/") if x and x not in ("~", ".", "..")]
+        if HOME_SEGMENT.search(p) or p.startswith("~/"):
+            edits.append(_edit(m.start(), m.end(), "file_path", "[PATH]"))
+        elif len(segs) >= 3 and segs[0].lower() not in SYSTEM_ROOTS | ROUTE_ROOTS:
+            edits.append(_edit(m.start(), m.end(), "file_path", "[PATH]"))
+    return edits
 
 
 def identifier_edits(text: str, doc, task_type: str, options: dict | None = None) -> list[dict]:
@@ -100,9 +164,12 @@ def identifier_edits(text: str, doc, task_type: str, options: dict | None = None
     opt = {**DEFAULT_OPTIONS, **(options or {})}
     edits = []
     letter_like = task_type in CV_TASKS
+    code = code_spans(text)
     for ent in doc.ents:
         name = ent.text.strip()
         if ent.label_ != "PERSON" or not NAME_SHAPE.match(name) or name.isupper():
+            continue
+        if _inside(ent.start_char, code) or code_context(text, ent.start_char, ent.end_char):
             continue
         before = text[max(0, ent.start_char - 40):ent.start_char]
         # A name is redacted only when its context marks it as a real person: a self-introduction or
@@ -119,8 +186,19 @@ def identifier_edits(text: str, doc, task_type: str, options: dict | None = None
     if letter_like:
         for m in SIGNATURE.finditer(text):
             edits.append(_edit(m.start("n"), m.end("n"), "name"))
-    for rx, cat in ((IPV4, "ip_address"), (HANDLE, "username_handle"), (PROFILE_URL, "personal_url"), (STREET, "street_address")):
+    for rx, cat in ((IPV4, "ip_address"), (PROFILE_URL, "personal_url"), (STREET, "street_address")):
         edits += [_edit(m.start(), m.end(), cat) for m in rx.finditer(text)]
+    # Handles: not decorators (@app.route, @property at a line start or followed by . or ( ), and in code
+    # turns or code blocks only after a cue such as "my instagram is".
+    for m in HANDLE.finditer(text):
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        decorator = text[line_start:m.start()].strip() == "" or text[m.end():m.end() + 1] in (".", "(")
+        in_code = task_type == "code" or _inside(m.start(), code)
+        cued = HANDLE_CUE.search(text[max(0, m.start() - 60):m.start()]) is not None
+        if (not decorator and not in_code) or cued:
+            edits.append(_edit(m.start(), m.end(), "username_handle"))
+    if opt["paths"]:
+        edits += path_edits(text)
     edits += [_edit(m.start("date"), m.end("date"), "date_of_birth") for m in DOB.finditer(text)]
     return edits
 
@@ -147,13 +225,18 @@ def generalize_edits(text: str, doc, task_type: str, options: dict | None = None
     t = tables()
     cv_like = task_type in CV_TASKS
     edits = []
+    code = code_spans(text)
     for sent in doc.sents:
         s0, s1 = sent.start_char, sent.end_char
+        if _inside(s0, code):
+            continue
         stext = text[s0:s1]
         if not (cv_like or FIRST_PERSON.search(stext)):
             continue
         affiliated = AFFILIATION.search(stext) is not None
         for ent in sent.ents:
+            if code_context(text, ent.start_char, ent.end_char):
+                continue
             if ent.label_ in ("GPE", "LOC", "FAC"):
                 rep = _place(ent.text, t)
                 if rep is not None:

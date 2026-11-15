@@ -158,3 +158,26 @@ def test_rules_options_switch_organizations():
     text = "My favourite tool from Acme Robotics is broken."
     assert "Acme Robotics" in _run(text)
     assert "Acme Robotics" not in _run(text, options={"organizations_in_first_person": True})
+
+
+def test_rules_paths_flag_personal_directories_only():
+    out = _run("df = pd.read_csv('/Users/jsmith/Documents/thesis/data.csv')", task="code")
+    assert "jsmith" not in out and "[PATH]" in out
+    assert "Lopez" not in _run(r"open(r'C:\Users\Maria Lopez\Desktop\taxes.xlsx')", task="code")
+    assert "akash" not in _run("python /home/akash/projects/acme/run.py", task="code")
+    assert "tom" not in _run("cd /mnt/c/Users/tom/repos", task="code")
+    assert "secrets" not in _run("cat ~/secrets/keys.txt", task="code")
+    # System paths, web routes, URLs and relative source paths stay.
+    for keep in ("export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu", "@app.route('/api/v1/users')",
+                 "See https://example.com/a/b/c for docs", "cat ./src/app/main.py",
+                 r"C:\Windows\System32\cmd.exe", r"C:\Program Files\Python311\python.exe"):
+        assert "[PATH]" not in _run(keep, task="code"), keep
+
+
+def test_rules_leave_code_alone():
+    code = "import numpy as np\n@property\ndef name(self):\n    return np.array(Jordan_data)\n@app.route('/x')"
+    out = _run(code, task="code")
+    assert "@property" in out and "@app.route" in out and "np.array" in out and "[USERNAME_HANDLE]" not in out
+    assert "[USERNAME_HANDLE]" in _run("my instagram is @sunny_days_88", task="code")    # cued handle in a code turn
+    assert "Leeds" not in _run("I live in Leeds.")                                     # full stop is not code
+    assert rs.code_context("x = np.array", 4, 6) and not rs.code_context("I live in Leeds.", 10, 15)

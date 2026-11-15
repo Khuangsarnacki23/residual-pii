@@ -103,3 +103,8 @@ figures are not separated from private individuals.
 - **Pooled recall is an upper bound.** Personal information that no tool flagged and the reviewer also
   missed is not counted, as in pooled IR evaluation.
 - **One reviewer.** Without a second reviewer there is no agreement statistic for the review.
+- **Path rule is shape-based.** A path is redacted if it contains a home directory, is a Windows
+  absolute path, or has three or more segments not starting at a system root or common web route.
+  Relative paths (`./src/...`), short paths and paths inside URLs are kept, so a personal folder name
+  in a short relative path is missed; deep but generic paths (`/content/drive/MyDrive/data/x.csv`) are
+  redacted anyway.

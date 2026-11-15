@@ -124,6 +124,49 @@ def cmd_build(cfg: dict, ds: str, source: str | None = None, n: int | None = Non
     return summary
 
 
+def cmd_refresh(cfg: dict, ds: str, source: str | None = None) -> dict:
+    """Re-runs the current sanitizer rules on the same review turns (same draw, same weights) and carries
+    every reviewer's judgments over to spans at the same offsets. Turns with new spans reopen on the page.
+    Spans no stage makes any more are dropped with their judgments."""
+    source = source or cfg["review"]["source"]
+    paths = Paths(cfg).ensure()
+    f = items_file(paths, ds, source)
+    items = pd.read_parquet(f)
+    turns = pd.read_parquet(paths.restricted / f"turns_{ds}.parquet")[[*KEY, "text"]]
+    work = items.merge(turns, on=KEY, how="left")
+    _, spans = sanitize.offline_texts(cfg, ds, work, paths)
+    stages = cfg["review"]["stages"]
+    old = {i: json.loads(e) for i, e in zip(items["item_id"], items["edits"])}
+    new = {i: pool_edits({s: spans[s][i] for s in stages}) for i in items["item_id"]}
+    summary = {"dataset": ds, "source": source, "edits_before": sum(map(len, old.values())),
+               "edits_after": sum(map(len, new.values())), "annotators": {}}
+    for lf in sorted(review_dir(paths, ds, source).glob("*.jsonl")):
+        who = lf.stem
+        labels = load_labels(paths, ds, source, who)
+        carried = new_spans = dropped = 0
+        for iid, rec in labels.items():
+            by_pos = {(e["start"], e["end"]): rec["judgments"].get(e["edit_id"]) for e in old[iid]}
+            judg = {}
+            for e in new[iid]:
+                v = by_pos.get((e["start"], e["end"]))
+                if v:
+                    judg[e["edit_id"]] = v
+                    carried += 1
+                else:
+                    new_spans += 1
+            dropped += sum(1 for k, v in by_pos.items() if v and k not in {(e["start"], e["end"]) for e in new[iid]})
+            rec["judgments"] = judg
+        lf.rename(lf.with_suffix(".jsonl.before_refresh"))   # keep the old file
+        for rec in labels.values():
+            save_label(paths, ds, source, who, rec)
+        summary["annotators"][who] = {"judgments_carried": carried, "spans_to_judge": new_spans,
+                                      "judgments_dropped": dropped}
+    items["edits"] = [json.dumps(new[i]) for i in items["item_id"]]
+    items["n_edits"] = [len(new[i]) for i in items["item_id"]]
+    items.to_parquet(f, index=False)
+    return summary
+
+
 # ---------------------------------------------------------------- labels
 
 def label_file(paths: Paths, ds: str, source: str, annotator: str) -> Path:
@@ -190,7 +233,10 @@ class ReviewApp:
 
     def item_list(self) -> list[dict]:
         own = load_labels(self.paths, self.ds, self.source, self.annotator)
-        return [{"item_id": i, "done": i in own, "skip": i in own and own[i]["skip"]} for i in self.items["item_id"]]
+
+        def done(i):   # every span judged (a refresh can add new ones), or skipped
+            return i in own and (own[i]["skip"] or all(e["edit_id"] in own[i]["judgments"] for e in self.edits[i]))
+        return [{"item_id": i, "done": done(i), "skip": i in own and own[i]["skip"]} for i in self.items["item_id"]]
 
     def item(self, iid: str) -> dict:
         from .annotate import _to_u16, _u16_offsets

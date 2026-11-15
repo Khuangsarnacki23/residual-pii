@@ -100,7 +100,10 @@ attacker model is no longer confident). A rule-based alternative to layers 2-3 n
 locally at dataset scale (`src/residpii/rules_sanitize.py`, tables in `configs/generalization.yaml`):
 `rules_identifiers` redacts names only where context marks a real person (letter frames, honorifics,
 "my manager X", first-person sentences, CV and email turns) plus handles, profile URLs, IPs, street
-addresses and birth dates; `rules_generalize` also turns cities into countries, affiliated
+addresses, birth dates and file paths that reveal the writer (home directories such as
+`/Users/<name>/…` or `C:\Users\<name>\…`, Windows absolute paths, deep project paths → `[PATH]`;
+system paths and web routes stay). It skips code: decorators are not handles, and code-shaped tokens
+(`np.array`, `my_var`) and ``` blocks get no name, place or organisation rules; `rules_generalize` also turns cities into countries, affiliated
 organisations into their kind, job titles into occupation groups, ages into bands and full dates into
 years, in personal sentences only. Its precision/recall switches are under `sanitizer.rules`. Each stage is scored against the human labels, which the
 sanitizer never sees: `sanitizer_leakage.csv` (gold private values still present),
@@ -124,7 +127,9 @@ are pooled: the page highlights each distinct span without saying which tool mad
 personal**, or **unsure** (keys 1/2/3), then select anything personal no tool highlighted. Scores per
 stage: precision (its edits judged personal), pooled recall (share of real items it covers; items
 everyone missed are not counted) and clean turns edited. Turns some tool edited are oversampled
-(`review.edited_share`) and reweighted. Edits are frozen at `build`, so rule changes need `--force`.
+(`review.edited_share`) and reweighted. Edits are frozen at `build`; after a rule change, `review
+refresh` re-runs the rules on the same turns, carries judgments over by span position, and reopens
+only turns with new spans (the previous label file is kept as `<annotator>.jsonl.before_refresh`).
 
 ### Storage
 Data is streamed column by column from the Hub; nothing is downloaded in full. Text is read only

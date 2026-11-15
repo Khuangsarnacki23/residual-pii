@@ -85,9 +85,10 @@ def main(argv: list[str] | None = None) -> int:
     rs_ = rsub.add_parser("serve", help="Open the review page for one reviewer")
     rs_.add_argument("--annotator", required=True)
     rs_.add_argument("--port", type=int)
+    rsub.add_parser("refresh", help="Re-run current rules on the same turns; keep judgments, reopen new spans")
     rc = rsub.add_parser("score", help="Precision / pooled recall of each sanitizer from the reviews")
     rc.add_argument("--annotator", required=True)
-    for p in (rb, rs_, rc):
+    for p in (rb, rs_, rc, rsub.choices["refresh"]):
         p.add_argument("--config", required=True)
         p.add_argument("--dataset", default="wildchat")
         p.add_argument("--source", choices=["fresh", "label_set"], help="Default: review.source in the config")
@@ -131,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
             except FileExistsError as e:
                 print(f"[review] {e}", file=sys.stderr)
                 return 2
+        elif args.review_cmd == "refresh":
+            print(json.dumps(review.cmd_refresh(cfg, args.dataset, args.source), indent=2))
         elif args.review_cmd == "serve":
             review.serve(cfg, args.dataset, args.annotator, args.source, args.port)
         else:

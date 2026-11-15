@@ -76,3 +76,23 @@ def test_review_server_requires_token(labelled_run):  # noqa: F811
         assert b"Sanitizer review" in get("/", "")[1]
     finally:
         httpd.shutdown()
+
+
+def test_refresh_keeps_judgments_and_reopens_new_spans(labelled_run):  # noqa: F811
+    cfg, pipe, _, _ = labelled_run
+    _label(cfg, pipe)
+    cfg["review"].update(n_items=6, pool_size=15)
+    review.cmd_build(cfg, "wildchat", "fresh")
+    app = review.ReviewApp(cfg, "wildchat", "kai", "fresh")
+    for iid in app.items["item_id"]:
+        it = app.item(iid)
+        app.save(iid, {"judgments": {e["edit_id"]: "not_personal" for e in it["edits"]}, "missed": []})
+    # Fewer stages after refresh: their spans' judgments carry over or drop, never get misattributed.
+    cfg["review"]["stages"] = ["patterns"]
+    s = review.cmd_refresh(cfg, "wildchat", "fresh")["annotators"]["kai"]
+    assert s["spans_to_judge"] == 0
+    app = review.ReviewApp(cfg, "wildchat", "kai", "fresh")
+    assert all(i["done"] for i in app.item_list())
+    labels = review.load_labels(pipe.paths, "wildchat", "fresh", "kai")
+    for iid in app.items["item_id"]:
+        assert set(labels[iid]["judgments"]) == {e["edit_id"] for e in app.edits[iid]}
