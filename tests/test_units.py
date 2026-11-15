@@ -76,3 +76,30 @@ def test_placeholder_discovery_is_k_thresholded():
     })
     out = discover(turns, min_conversations=5)
     assert list(out["placeholder_shape"]) == ["NAME_#"]
+
+
+def test_variants_leave_out_templates_except_incl_templates():
+    import pandas as pd
+    from residpii.analysis import variants
+
+    conv = pd.DataFrame({"is_story_roleplay": [False, True, False, False],
+                         "is_template": [False, False, True, True]})
+    v = variants(conv)
+    assert v["all"].tolist() == [True, True, False, False]
+    assert v["excl_story_roleplay"].tolist() == [True, False, False, False]
+    assert v["incl_templates"].tolist() == [True, True, True, True]
+    assert "incl_templates" not in variants(conv.assign(is_template=False))
+    assert variants(conv.drop(columns="is_template"))["all"].all()
+
+
+def test_templated_conversations_are_found_per_dataset():
+    import pandas as pd
+    from residpii.labeling import templated_conversations
+
+    prompt = "You are a prompt generator for an image model. " * 6
+    rows = [("wildchat", f"w{i}", prompt + str(i)) for i in range(3)]
+    rows += [("lmsys", "l0", prompt), ("wildchat", "w9", "short hello")]
+    turns = pd.DataFrame(rows, columns=["dataset", "conversation_id", "text"])
+    cfg = {"exclude": True, "prefix_chars": 200, "min_conversations": 3}
+    assert templated_conversations(turns, cfg) == {("wildchat", "w0"), ("wildchat", "w1"), ("wildchat", "w2")}
+    assert templated_conversations(turns, {**cfg, "exclude": False}) == set()

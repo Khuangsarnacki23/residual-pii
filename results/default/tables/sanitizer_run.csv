@@ -1,0 +1,2 @@
+dataset,items,gold,items_with_private_gold,done_shipped,done_presidio,done_patterns,done_llm_identifiers,done_generalize,done_adversarial,done_rules_identifiers,done_rules_generalize,mean_adversarial_rewrites,adversarial_still_confident,cost_usd,rewrite_model,attacker_model,eval_attacker_model,judge_model,max_rounds,confident
+wildchat,260,kai,21,260,260,260,260,0,0,260,260,,0,0,claude-sonnet-5-5,claude-haiku-5-5,claude-sonnet-5-5,claude-haiku-5-5,3,4

@@ -1,0 +1,7 @@
+dataset,detector,category,spans_per_1k_tokens
+wildchat,presidio,date,5.30936
+wildchat,presidio,ip_address,0.0810202
+wildchat,presidio,location,2.87628
+wildchat,presidio,name,5.84165
+wildchat,presidio,nrp,1.24679
+wildchat,presidio,url,19.2002

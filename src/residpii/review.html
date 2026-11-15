@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sanitizer Review</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --text: #1b1b19; --muted: #6a6964; --line: #e4e3df;
+  --accent: #2a78d6; --danger: #c43b31;
+  --todo: #fde2a8; --todo-b: #d79a1c; --yes: #f8c9c4; --yes-b: #c43b31; --no: #e4e3df; --no-b: #a09f9a;
+  --unsure: #e5d7f7; --unsure-b: #8a5cc7; --miss: #cfe6fb; --miss-b: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161615; --panel: #1f1f1d; --text: #ecebe7; --muted: #a09f9a; --line: #34332f;
+    --todo: #5a4415; --todo-b: #e0a93a; --yes: #5c2420; --yes-b: #ef7a70; --no: #2c2b28; --no-b: #6a6964;
+    --unsure: #3b2c55; --unsure-b: #b38ef0; --miss: #173a5c; --miss-b: #6aaef0; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, sans-serif; }
+header { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+header h1 { font-size: 15px; margin: 0; }
+header .meta { color: var(--muted); }
+header .spacer { flex: 1; }
+main { display: grid; grid-template-columns: 150px minmax(0, 1fr) 380px; height: calc(100vh - 49px); }
+#list { overflow-y: auto; border-right: 1px solid var(--line); padding: 6px 0; }
+#list button { display: flex; width: 100%; justify-content: space-between; border: 0; background: none; color: var(--text); padding: 3px 12px; font: inherit; cursor: pointer; text-align: left; }
+#list button.cur { background: var(--line); font-weight: 600; }
+#list .st { color: var(--muted); }
+#textpane { overflow-y: auto; padding: 16px 24px; }
+#text { white-space: pre-wrap; word-wrap: break-word; font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+#text .todo { background: var(--todo); border-bottom: 2px solid var(--todo-b); cursor: pointer; }
+#text .personal { background: var(--yes); border-bottom: 2px solid var(--yes-b); cursor: pointer; }
+#text .not_personal { background: var(--no); border-bottom: 2px dotted var(--no-b); cursor: pointer; }
+#text .unsure { background: var(--unsure); border-bottom: 2px dashed var(--unsure-b); cursor: pointer; }
+#text .miss { background: var(--miss); border-bottom: 2px solid var(--miss-b); }
+#text .hl { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+aside { overflow-y: auto; border-left: 1px solid var(--line); padding: 12px 16px; background: var(--panel); }
+aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
+aside h2:first-child { margin-top: 0; }
+.row { display: flex; gap: 6px; align-items: center; padding: 5px 4px; border-bottom: 1px solid var(--line); border-radius: 4px; }
+.row.cur { background: var(--bg); outline: 1px solid var(--accent); }
+.row .q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; font-size: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 12px; border: 0; background: var(--bg); color: var(--text); padding: 2px 7px; cursor: pointer; border-left: 1px solid var(--line); }
+.seg button:first-child { border-left: 0; }
+.seg button.on[data-v=personal] { background: var(--yes-b); color: #fff; }
+.seg button.on[data-v=not_personal] { background: var(--no-b); color: #fff; }
+.seg button.on[data-v=unsure] { background: var(--unsure-b); color: #fff; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--line); white-space: nowrap; }
+textarea { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; width: 100%; min-height: 50px; }
+button.btn { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.x { border: 0; background: none; color: var(--danger); cursor: pointer; font-size: 15px; padding: 0 4px; }
+#popup { position: fixed; display: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: 10px; z-index: 5; width: 330px; }
+#popup .grid { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+#popup .grid button { font-size: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 12px; padding: 2px 8px; cursor: pointer; }
+#popup .grid button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+#popup .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+.status { font-size: 12px; color: var(--muted); }
+.status.err { color: var(--danger); }
+kbd { font-size: 11px; border: 1px solid var(--line); border-radius: 3px; padding: 0 3px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sanitizer review</h1>
+  <span class="meta" id="who"></span>
+  <span class="meta" id="prog"></span>
+  <span class="spacer"></span>
+  <span class="status" id="status"></span>
+  <button class="btn" id="prev">← Prev</button>
+  <button class="btn primary" id="save">Save &amp; next →</button>
+</header>
+<main>
+  <nav id="list"></nav>
+  <section id="textpane">
+    <div class="hint">Highlighted spans are what some privacy tool would change. For each, decide whether it is
+      <b>personal</b>: private information about the writer or a real person they mention (a name, contact detail,
+      employer, home town, age, job, health…), which should be removed or generalised. Fictional characters, public
+      figures, code, and places or organisations discussed as general topics are <b>not personal</b>.
+      Then select any personal information no tool highlighted.</div>
+    <div class="legend">
+      <span><i style="background:var(--todo)"></i>to judge</span><span><i style="background:var(--yes)"></i>personal</span>
+      <span><i style="background:var(--no)"></i>not personal</span><span><i style="background:var(--unsure)"></i>unsure</span>
+      <span><i style="background:var(--miss)"></i>missed (you added)</span>
+    </div>
+    <div id="text"></div>
+  </section>
+  <aside>
+    <h2>Highlighted spans</h2>
+    <div class="hint"><kbd>1</kbd> personal · <kbd>2</kbd> not personal · <kbd>3</kbd> unsure · <kbd>↑</kbd><kbd>↓</kbd> move</div>
+    <div id="edits"></div>
+    <div style="margin-top:6px"><button class="btn" id="restno">Rest → not personal</button></div>
+    <h2>Missed personal information</h2>
+    <div class="hint">Select text in the message to add.</div>
+    <div id="missed"></div>
+    <h2>Turn</h2>
+    <label><input type="checkbox" id="skip"> Skip (not English, empty, or unreadable)</label>
+    <textarea id="note" placeholder="Note (optional)"></textarea>
+    <div class="hint"><kbd>Ctrl/⌘+Enter</kbd> saves and moves on. Every highlighted span must be judged.</div>
+  </aside>
+</main>
+<div id="popup">
+  <div class="lbl">Direct identifier</div><div class="grid" id="p_direct"></div>
+  <div class="lbl">Quasi-identifier</div><div class="grid" id="p_quasi"></div>
+  <div class="lbl">Whose is it</div><div class="grid" id="p_whose"></div>
+  <div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn" id="p_cancel">Cancel</button><button class="btn primary" id="p_ok">Add missed</button></div>
+</div>
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+const $ = (id) => document.getElementById(id);
+const VALS = ["personal", "not_personal", "unsure"], NAMES = { personal: "Personal", not_personal: "Not", unsure: "?" };
+let CFG, ITEMS = [], cur = -1, item = null, label = null, dirty = false, pending = null, focus = 0;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "X-Token": TOKEN, "Content-Type": "application/json" } });
+  if (!r.ok) throw new Error((await r.text()) || r.status);
+  return r.json();
+}
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "on" ? Object.entries(v).forEach(([ev, f]) => e.addEventListener(ev, f)) : e.setAttribute(k, v);
+  kids.flat().forEach((c) => e.append(c instanceof Node ? c : document.createTextNode(String(c))));
+  return e;
+}
+function setStatus(msg, err = false) { $("status").textContent = msg; $("status").className = "status" + (err ? " err" : ""); }
+
+async function init() {
+  if (!TOKEN) { document.body.textContent = "Missing session token: open the exact URL printed by `residpii review serve`."; return; }
+  CFG = await api("/api/config");
+  $("who").textContent = CFG.annotator;
+  for (const [box, vals] of [["p_direct", CFG.direct], ["p_quasi", CFG.quasi]])
+    vals.forEach((v) => $(box).append(el("button", { "data-cat": v, on: { click: () => pick("category", v) } }, v.replaceAll("_", " "))));
+  [["self", "the writer"], ["third_party", "a real third party"]].forEach(([v, n]) =>
+    $("p_whose").append(el("button", { "data-whose": v, on: { click: () => pick("whose", v) } }, n)));
+  ITEMS = await api("/api/items");
+  renderList();
+  const first = ITEMS.findIndex((i) => !i.done);
+  go(first < 0 ? 0 : first);
+}
+
+function renderList() {
+  $("list").replaceChildren(...ITEMS.map((it, k) => el("button", { class: k === cur ? "cur" : "", on: { click: () => go(k) } },
+    it.item_id, el("span", { class: "st" }, it.skip ? "skip" : it.done ? "✓" : ""))));
+  $("prog").textContent = `${ITEMS.filter((i) => i.done).length} / ${ITEMS.length} reviewed`;
+}
+
+async function go(k) {
+  if (k < 0 || k >= ITEMS.length) return;
+  if (dirty && !confirm("Discard unsaved changes to this turn?")) return;
+  cur = k; item = await api(`/api/item/${ITEMS[k].item_id}`);
+  label = item.label ? structuredClone(item.label) : { judgments: {}, missed: [], skip: false, note: "" };
+  dirty = false; focus = 0; hidePopup(); render(); renderList(); setStatus(item.label ? "saved earlier" : "");
+  $("textpane").scrollTop = 0;
+}
+
+function render() { renderText(); renderEdits(); renderMissed(); $("skip").checked = label.skip; $("note").value = label.note || ""; }
+
+function renderText() {
+  const t = item.text, cuts = new Set([0, t.length]);
+  const marks = [...item.edits.map((e, j) => ({ ...e, j })), ...label.missed.map((m) => ({ ...m, miss: true }))];
+  marks.forEach((s) => { cuts.add(s.start); cuts.add(s.end); });
+  const pts = [...cuts].sort((a, b) => a - b), frag = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const cover = marks.filter((s) => s.start <= a && s.end >= b);
+    let cls = "", onclick = null;
+    const ed = cover.filter((s) => !s.miss);
+    if (ed.length) {
+      const top = ed.reduce((x, y) => (y.end - y.start < x.end - x.start ? y : x));   // innermost edit
+      cls = label.judgments[top.edit_id] || "todo";
+      if (ed.some((s) => s.j === focus)) cls += " hl";
+      onclick = () => { focus = top.j; renderText(); renderEdits(); };
+    } else if (cover.length) cls = "miss";
+    const span = el("span", { "data-s": a, class: cls }, t.slice(a, b));
+    if (onclick) span.addEventListener("click", onclick);
+    frag.push(span);
+  }
+  $("text").replaceChildren(...frag);
+}
+
+function judge(id, v) { label.judgments[id] = v; touch(); renderText(); renderEdits(); }
+
+function renderEdits() {
+  if (!item.edits.length) { $("edits").replaceChildren(el("div", { class: "hint" }, "No tool changes anything in this turn.")); return; }
+  $("edits").replaceChildren(...item.edits.map((e, j) => {
+    const seg = el("span", { class: "seg" }, ...VALS.map((v) => el("button", { "data-v": v, class: label.judgments[e.edit_id] === v ? "on" : "",
+      on: { click: (ev) => { ev.stopPropagation(); focus = j; judge(e.edit_id, v); } } }, NAMES[v])));
+    return el("div", { class: "row" + (j === focus ? " cur" : ""), on: { click: () => { focus = j; renderText(); renderEdits(); } } },
+      el("span", { class: "q", title: item.text.slice(e.start, e.end) }, item.text.slice(e.start, e.end)), seg);
+  }));
+  const row = $("edits").children[focus];
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
+
+function renderMissed() {
+  $("missed").replaceChildren(...(label.missed.length ? label.missed.map((m, j) => el("div", { class: "row" },
+    el("span", { class: "q" }, item.text.slice(m.start, m.end)), el("span", { class: "tag" }, m.category),
+    el("span", { class: "tag" }, m.whose === "self" ? "writer" : "third party"),
+    el("button", { class: "x", title: "Remove", on: { click: () => { label.missed.splice(j, 1); touch(); render(); } } }, "×"))) :
+    [el("div", { class: "hint" }, "None added.")]));
+}
+
+function touch() { dirty = true; setStatus("unsaved"); }
+
+// ---- selection -> missed span
+function offsetOf(node, off) {
+  const seg = (node.nodeType === 3 ? node.parentElement : node).closest("[data-s]");
+  if (!seg || !$("text").contains(seg)) return null;
+  return Number(seg.dataset.s) + (node.nodeType === 3 ? off : 0);
+}
+$("text").addEventListener("mouseup", (ev) => {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || sel.isCollapsed) return;
+  const r = sel.getRangeAt(0);
+  let a = offsetOf(r.startContainer, r.startOffset), b = offsetOf(r.endContainer, r.endOffset);
+  if (a === null || b === null) return;
+  const t = item.text;
+  while (a < b && /\s/.test(t[a])) a++;
+  while (b > a && /\s/.test(t[b - 1])) b--;
+  if (a >= b) return;
+  while (a > 0 && /[\p{L}\p{N}_]/u.test(t[a - 1]) && /[\p{L}\p{N}_]/u.test(t[a])) a--;   // snap to whole words
+  while (b < t.length && /[\p{L}\p{N}_]/u.test(t[b]) && /[\p{L}\p{N}_]/u.test(t[b - 1])) b++;
+  pending = { start: a, end: b, category: null, whose: "self" };
+  const p = $("popup"); p.style.display = "block";
+  p.style.left = Math.min(ev.clientX, innerWidth - 350) + "px"; p.style.top = Math.min(ev.clientY + 12, innerHeight - p.offsetHeight - 10) + "px";
+  refreshPopup();
+});
+function hidePopup() { $("popup").style.display = "none"; pending = null; }
+function pick(k, v) { pending[k] = v; refreshPopup(); }
+function refreshPopup() {
+  document.querySelectorAll("#popup [data-cat]").forEach((b) => b.classList.toggle("on", b.dataset.cat === pending.category));
+  document.querySelectorAll("#popup [data-whose]").forEach((b) => b.classList.toggle("on", b.dataset.whose === pending.whose));
+}
+$("p_cancel").onclick = () => { hidePopup(); window.getSelection().removeAllRanges(); };
+$("p_ok").onclick = () => {
+  if (!pending.category) { setStatus("pick a category", true); return; }
+  label.missed.push(pending); label.missed.sort((a, b) => a.start - b.start || a.end - b.end);
+  hidePopup(); window.getSelection().removeAllRanges(); touch(); render();
+};
+
+$("restno").onclick = () => { item.edits.forEach((e) => { if (!label.judgments[e.edit_id]) label.judgments[e.edit_id] = "not_personal"; }); touch(); render(); };
+$("skip").onchange = (e) => { label.skip = e.target.checked; touch(); };
+$("note").oninput = (e) => { label.note = e.target.value; touch(); };
+
+async function save(next) {
+  const left = item.edits.filter((e) => !label.judgments[e.edit_id]).length;
+  if (left && !label.skip) { setStatus(`${left} span(s) still to judge`, true); return; }
+  try {
+    await api(`/api/label/${item.item_id}`, { method: "POST", body: JSON.stringify(label) });
+    ITEMS[cur].done = true; ITEMS[cur].skip = label.skip; dirty = false; setStatus("saved");
+    if (next) { const k = ITEMS.findIndex((i, j) => j > cur && !i.done); go(k < 0 ? Math.min(cur + 1, ITEMS.length - 1) : k); }
+    else renderList();
+  } catch (e) { setStatus("save failed: " + e.message, true); }
+}
+$("save").onclick = () => save(true);
+$("prev").onclick = () => go(cur - 1);
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "TEXTAREA") { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(true); } return; }
+  if (e.key === "Escape") hidePopup();
+  else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(true); }
+  else if (item && item.edits.length && ["1", "2", "3"].includes(e.key)) {
+    judge(item.edits[focus].edit_id, VALS[Number(e.key) - 1]);
+    const nxt = item.edits.findIndex((x, j) => j > focus && !label.judgments[x.edit_id]);
+    if (nxt >= 0) { focus = nxt; renderText(); renderEdits(); }
+  } else if (item && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    e.preventDefault(); focus = Math.max(0, Math.min(item.edits.length - 1, focus + (e.key === "ArrowDown" ? 1 : -1))); renderText(); renderEdits();
+  }
+});
+window.addEventListener("beforeunload", (e) => { if (dirty) e.preventDefault(); });
+init().catch((e) => setStatus(e.message, true));
+</script>
+</body>
+</html>

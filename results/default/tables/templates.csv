@@ -1,0 +1,4 @@
+dataset,excluded,prefix_chars,min_conversations,n_conversations,n_templated,weighted_share_templated
+arena,True,200,5,5000,5,0.000999981
+lmsys,True,200,5,5000,329,0.0658053
+wildchat,True,200,5,5000,1119,0.223818

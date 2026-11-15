@@ -69,11 +69,29 @@ def weighted_prevalence(X: np.ndarray, w: np.ndarray, strata: np.ndarray, reps: 
 
 
 def variants(conv: pd.DataFrame) -> dict[str, pd.Series]:
-    v = {"all": pd.Series(True, index=conv.index),
-         "excl_story_roleplay": ~conv["is_story_roleplay"]}
+    """Subsets to estimate over. When `is_template` is present, every variant except `incl_templates`
+    leaves out conversations that contain a shared prompt template, so "all" means all non-templated
+    conversations."""
+    everything = pd.Series(True, index=conv.index)
+    base = ~conv["is_template"].astype(bool) if "is_template" in conv else everything
+    v = {"all": base, "excl_story_roleplay": base & ~conv["is_story_roleplay"]}
     if "dedup_status" in conv:
-        v["excl_arena_overlap"] = conv["dedup_status"].fillna("unique").eq("unique")
+        v["excl_arena_overlap"] = base & conv["dedup_status"].fillna("unique").eq("unique")
+    if "is_template" in conv and conv["is_template"].any():
+        v["incl_templates"] = everything
     return v
+
+
+def template_table(conv: pd.DataFrame, turns: pd.DataFrame, tcfg: dict) -> pd.DataFrame:
+    """How many sampled conversations were left out as shared prompt templates, per dataset."""
+    rows = []
+    for ds, g in conv.groupby("dataset"):
+        t = g["is_template"].astype(bool) if "is_template" in g else pd.Series(False, index=g.index)
+        rows.append({"dataset": ds, "excluded": bool(tcfg.get("exclude")),
+                     "prefix_chars": tcfg.get("prefix_chars"), "min_conversations": tcfg.get("min_conversations"),
+                     "n_conversations": len(g), "n_templated": int(t.sum()),
+                     "weighted_share_templated": float((g["weight"] * t).sum() / g["weight"].sum())})
+    return pd.DataFrame(rows)
 
 
 def prevalence_table(conv: pd.DataFrame, cfg: dict, seed: int) -> pd.DataFrame:

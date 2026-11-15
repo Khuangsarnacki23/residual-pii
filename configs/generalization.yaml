@@ -1,0 +1,352 @@
+# Lookup tables for the rule-based sanitizer (src/residpii/rules_sanitize.py). No model calls.
+# Countries, cities and occupation keywords are adapted from Ethan's configs/coarsening.yaml
+# (origin/ethan/identifiability-wip). Deliberately small and English/US-centred: a place not listed
+# here is replaced by [LOCATION] rather than generalised. See docs/limitations.md.
+countries:
+  united states: the US
+  usa: the US
+  us: the US
+  u.s.: the US
+  u.s.a.: the US
+  america: the US
+  united states of america: the US
+  the states: the US
+  united kingdom: the UK
+  uk: the UK
+  u.k.: the UK
+  great britain: the UK
+  britain: the UK
+  england: the UK
+  scotland: the UK
+  wales: the UK
+  northern ireland: the UK
+  canada: Canada
+  australia: Australia
+  new zealand: New Zealand
+  ireland: Ireland
+  india: India
+  pakistan: Pakistan
+  bangladesh: Bangladesh
+  china: China
+  prc: China
+  mainland china: China
+  japan: Japan
+  south korea: South Korea
+  korea: South Korea
+  republic of korea: South Korea
+  taiwan: Taiwan
+  hong kong: Hong Kong
+  singapore: Singapore
+  malaysia: Malaysia
+  indonesia: Indonesia
+  philippines: the Philippines
+  the philippines: the Philippines
+  vietnam: Vietnam
+  viet nam: Vietnam
+  thailand: Thailand
+  germany: Germany
+  france: France
+  spain: Spain
+  italy: Italy
+  portugal: Portugal
+  netherlands: the Netherlands
+  the netherlands: the Netherlands
+  holland: the Netherlands
+  belgium: Belgium
+  switzerland: Switzerland
+  austria: Austria
+  sweden: Sweden
+  norway: Norway
+  denmark: Denmark
+  finland: Finland
+  poland: Poland
+  ukraine: Ukraine
+  russia: Russia
+  russian federation: Russia
+  turkey: Turkey
+  turkiye: Turkey
+  türkiye: Turkey
+  greece: Greece
+  israel: Israel
+  iran: Iran
+  saudi arabia: Saudi Arabia
+  united arab emirates: the UAE
+  uae: the UAE
+  u.a.e.: the UAE
+  egypt: Egypt
+  nigeria: Nigeria
+  kenya: Kenya
+  south africa: South Africa
+  brazil: Brazil
+  brasil: Brazil
+  mexico: Mexico
+  argentina: Argentina
+  colombia: Colombia
+  chile: Chile
+places:
+  new york city: the US
+  nyc: the US
+  new york: the US
+  brooklyn: the US
+  manhattan: the US
+  queens: the US
+  buffalo: the US
+  los angeles: the US
+  la: the US
+  san francisco: the US
+  sf: the US
+  san diego: the US
+  san jose: the US
+  sacramento: the US
+  oakland: the US
+  palo alto: the US
+  chicago: the US
+  houston: the US
+  dallas: the US
+  austin: the US
+  san antonio: the US
+  fort worth: the US
+  phoenix: the US
+  tucson: the US
+  philadelphia: the US
+  pittsburgh: the US
+  miami: the US
+  orlando: the US
+  tampa: the US
+  jacksonville: the US
+  seattle: the US
+  boston: the US
+  cambridge: the US
+  atlanta: the US
+  denver: the US
+  detroit: the US
+  minneapolis: the US
+  las vegas: the US
+  portland: the US
+  washington dc: the US
+  washington d.c.: the US
+  dc: the US
+  columbus: the US
+  cleveland: the US
+  cincinnati: the US
+  charlotte: the US
+  raleigh: the US
+  nashville: the US
+  memphis: the US
+  baltimore: the US
+  st louis: the US
+  saint louis: the US
+  kansas city: the US
+  new orleans: the US
+  salt lake city: the US
+  honolulu: the US
+  toronto: Canada
+  ottawa: Canada
+  ontario: Canada
+  montreal: Canada
+  quebec city: Canada
+  quebec: Canada
+  vancouver: Canada
+  british columbia: Canada
+  calgary: Canada
+  edmonton: Canada
+  alberta: Canada
+  london: the UK
+  manchester: the UK
+  birmingham: the UK
+  liverpool: the UK
+  leeds: the UK
+  bristol: the UK
+  oxford: the UK
+  england: the UK
+  edinburgh: the UK
+  glasgow: the UK
+  scotland: the UK
+  cardiff: the UK
+  wales: the UK
+  belfast: the UK
+  northern ireland: the UK
+  dublin: Ireland
+  leinster: Ireland
+  sydney: Australia
+  new south wales: Australia
+  melbourne: Australia
+  victoria: Australia
+  brisbane: Australia
+  queensland: Australia
+  perth: Australia
+  western australia: Australia
+  auckland: New Zealand
+  auckland region: New Zealand
+  wellington: New Zealand
+  wellington region: New Zealand
+  mumbai: India
+  bombay: India
+  pune: India
+  maharashtra: India
+  delhi: India
+  new delhi: India
+  bangalore: India
+  bengaluru: India
+  karnataka: India
+  chennai: India
+  tamil nadu: India
+  hyderabad: India
+  telangana: India
+  kolkata: India
+  calcutta: India
+  west bengal: India
+  beijing: China
+  shanghai: China
+  guangzhou: China
+  shenzhen: China
+  guangdong: China
+  tokyo: Japan
+  osaka: Japan
+  seoul: South Korea
+  berlin: Germany
+  munich: Germany
+  bavaria: Germany
+  hamburg: Germany
+  frankfurt: Germany
+  hesse: Germany
+  paris: France
+  ile-de-france: France
+  lyon: France
+  auvergne-rhone-alpes: France
+  madrid: Spain
+  barcelona: Spain
+  catalonia: Spain
+  rome: Italy
+  lazio: Italy
+  milan: Italy
+  lombardy: Italy
+  amsterdam: the Netherlands
+  north holland: the Netherlands
+  moscow: Russia
+  saint petersburg: Russia
+  st petersburg: Russia
+  istanbul: Turkey
+  ankara: Turkey
+  sao paulo: Brazil
+  são paulo: Brazil
+  rio de janeiro: Brazil
+  rio: Brazil
+  mexico city: Mexico
+  cdmx: Mexico
+  cairo: Egypt
+  lagos: Nigeria
+  johannesburg: South Africa
+  gauteng: South Africa
+  cape town: South Africa
+  western cape: South Africa
+  dubai: the UAE
+  abu dhabi: the UAE
+  manila: the Philippines
+  metro manila: the Philippines
+  jakarta: Indonesia
+  bangkok: Thailand
+  karachi: Pakistan
+  sindh: Pakistan
+  lahore: Pakistan
+  punjab: Pakistan
+  connecticut: the US
+  maine: the US
+  massachusetts: the US
+  new hampshire: the US
+  rhode island: the US
+  vermont: the US
+  new jersey: the US
+  pennsylvania: the US
+  illinois: the US
+  indiana: the US
+  michigan: the US
+  ohio: the US
+  wisconsin: the US
+  iowa: the US
+  kansas: the US
+  minnesota: the US
+  missouri: the US
+  nebraska: the US
+  north dakota: the US
+  south dakota: the US
+  delaware: the US
+  florida: the US
+  georgia: the US
+  maryland: the US
+  north carolina: the US
+  south carolina: the US
+  virginia: the US
+  district of columbia: the US
+  west virginia: the US
+  alabama: the US
+  kentucky: the US
+  mississippi: the US
+  tennessee: the US
+  arkansas: the US
+  louisiana: the US
+  oklahoma: the US
+  texas: the US
+  arizona: the US
+  colorado: the US
+  idaho: the US
+  montana: the US
+  nevada: the US
+  new mexico: the US
+  utah: the US
+  wyoming: the US
+  alaska: the US
+  california: the US
+  hawaii: the US
+  oregon: the US
+  washington: the US
+occupation_keywords:
+- - \b(?:student|pupil|undergrad\w*|phd candidate|schoolboy|schoolgirl)\b
+  - a student
+- - \b(?:nursing assistant|caregiver|medical assistant|home health|orderly)\b
+  - a healthcare worker
+- - \b(?:software|developer|programmer|web dev\w*|devops|sysadmin|system administrator)\b
+  - an IT professional
+- - \b(?:data scien\w*|data analyst|statistician|machine learning|it support|qa|cyber\w*|database)\b
+  - an IT professional
+- - \b(?:nurse|doctor|physician|surgeon|dentist|pharmacist|veterinarian|vet|optometrist)\b
+  - a healthcare professional
+- - \b(?:therapist|paramedic|emt|radiographer|lab technician|dietitian)\b
+  - a healthcare professional
+- - \b(?:professor|lecturer)\b
+  - an education professional
+- - \b(?:teacher|tutor|librarian|teaching assistant|instructor|educator)\b
+  - an education professional
+- - \b(?:lawyer|attorney|solicitor|barrister|judge)\b
+  - a legal professional
+- - \b(?:paralegal|legal assistant)\b
+  - a legal professional
+- - \b(?:engineer|architect|surveyor|drafter)\b
+  - an engineering professional
+- - \b(?:scientist|researcher|chemist|biologist|physicist|economist|psychologist|sociologist)\b
+  - a scientist
+- - \b(?:accountant|auditor|financial analyst|hr|human resources|recruiter|consultant|analyst|underwriter)\b
+  - a business professional
+- - \b(?:manager|director|ceo|cto|cfo|founder|executive|business owner|owner|entrepreneur|principal)\b
+  - a manager
+- - \b(?:writer|journalist|designer|artist|musician|actor|actress|photographer|editor|translator|author|animator)\b
+  - a creative professional
+- - \b(?:social worker|counselor|counsellor|clergy|pastor|priest|imam|rabbi)\b
+  - a community service worker
+- - \b(?:police|firefighter|security guard|correctional|detective)\b
+  - a protective service worker
+organization_kinds:
+- - \b(?:university|college|institute|polytechnic|academy of)\b
+  - a university
+- - \b(?:school|academy|lyc[eé]e|gymnasium)\b
+  - a school
+- - \b(?:hospital|clinic|medical|health|healthcare|nhs|pharma\w*)\b
+  - a healthcare organisation
+- - \b(?:bank|capital|financial|finance|insurance|investments?|securities)\b
+  - a financial company
+- - \b(?:ministry|department|council|government|agency|army|navy|air force|police|city of|county)\b
+  - a public agency
+- - \b(?:foundation|charity|ngo|association|society)\b
+  - a non-profit
+- - .
+  - a company

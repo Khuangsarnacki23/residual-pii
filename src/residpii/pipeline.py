@@ -13,7 +13,7 @@ from typing import Callable
 
 import pandas as pd
 
-from . import analysis, dedup, detect, redactions, report
+from . import analysis, dedup, detect, labeling, redactions, report
 from .config import Paths, load_taxonomy, stable_hash
 from .safety import load_or_create_key
 from .sampling import eligible, stratified_sample
@@ -170,6 +170,12 @@ class Pipeline:
         conv = conv.merge(tasks_df, on=["dataset", "conversation_id"], how="left")
         conv["is_story_roleplay"] = conv["is_story_roleplay"].fillna(False).astype(bool)
         conv["task_type"] = conv["task_type"].fillna(self.taxonomy["default_task_type"])
+        # Shared prompt templates (one pasted prompt reused across many sampled conversations) are left
+        # out of every estimate; prevalence.csv keeps an `incl_templates` variant for comparison.
+        tcfg = labeling.template_config(self.cfg)
+        templ = labeling.templated_conversations(turns_df, tcfg)
+        conv["is_template"] = [(d, c) in templ for d, c in zip(conv["dataset"], conv["conversation_id"])]
+        report.write_table(analysis.template_table(conv, turns_df, tcfg), self.paths.tables, "templates")
 
         if do_dedup and "lmsys" in set(sample["dataset"]) and not self._sources:
             try:
@@ -186,6 +192,15 @@ class Pipeline:
         seed, t = self.cfg["seed"], self.paths.tables
         prev = analysis.prevalence_table(conv, self.cfg, seed)
         report.write_table(prev, t, "prevalence")
+        # Everything below describes non-templated conversations only.
+        if "is_template" in conv:
+            conv = conv[~conv["is_template"]]
+            keep = pd.MultiIndex.from_frame(conv[["dataset", "conversation_id"]])
+
+            def kept(df):
+                return df[pd.MultiIndex.from_frame(df[["dataset", "conversation_id"]]).isin(keep)]
+
+            sample, spans_df, stats_df = kept(sample), kept(spans_df), kept(stats_df)
         task_cols = [c for c in conv.columns if c in ("any::tier_direct", "any::tier_quasi", "presidio::name")]
         by_task = analysis.by_task_table(conv, self.cfg, seed, task_cols)
         report.write_table(by_task, t, "prevalence_by_task")

@@ -84,6 +84,48 @@ random subset of whole conversations. Writes text-free spans to
 i.e. the writer or a real third party) and `llm_detector_all` (every span it marked). Aggregate tables:
 `llm_prevalence.csv`, `llm_coverage.csv`. `label score` then grades the LLM detector next to Presidio.
 
+### Layered sanitizer (RQ4)
+
+```bash
+.venv/bin/residpii sanitize --config configs/default.yaml                                  # layers 1-2, offline
+.venv/bin/residpii sanitize --config configs/default.yaml --estimate                       # cost of the rest
+.venv/bin/residpii sanitize --config configs/default.yaml --allow-hosted --max-cost 15     # layers 3-4 + evaluation
+```
+
+Sanitizes the non-templated WildChat label items in stages: `presidio` (reference: off-the-shelf
+re-run), `patterns` (layer 1: Presidio pattern recognizers + credential rules, no NER),
+`llm_identifiers` (layer 2: + direct identifiers the LLM detector judged private), `generalize`
+(layer 3: an LLM generalises stated quasi-identifiers) and `adversarial` (layer 4: rewrite until an
+attacker model is no longer confident). A rule-based alternative to layers 2-3 needs no LLM and runs
+locally at dataset scale (`src/residpii/rules_sanitize.py`, tables in `configs/generalization.yaml`):
+`rules_identifiers` redacts names only where context marks a real person (letter frames, honorifics,
+"my manager X", first-person sentences, CV and email turns) plus handles, profile URLs, IPs, street
+addresses and birth dates; `rules_generalize` also turns cities into countries, affiliated
+organisations into their kind, job titles into occupation groups, ages into bands and full dates into
+years, in personal sentences only. Its precision/recall switches are under `sanitizer.rules`. Each stage is scored against the human labels, which the
+sanitizer never sees: `sanitizer_leakage.csv` (gold private values still present),
+`sanitizer_overredaction.csv` (non-PII words kept, PII-free turns changed, false redactions),
+`sanitizer_exposure.csv` (a held-out attacker, by default a different model from the loop's) and
+`sanitizer_utility.csv` (a judge's 1-5 rating). Hosted steps send only label-set turns, resume on
+rerun, and stop at `--max-cost`. Sanitized text stays in `restricted/sanitize/`.
+
+### Hand review of the sanitizers (RQ4)
+
+```bash
+.venv/bin/residpii review build --config configs/default.yaml                    # 100 fresh WildChat turns
+.venv/bin/residpii review serve --config configs/default.yaml --annotator kai    # blind review page
+.venv/bin/residpii review score --config configs/default.yaml --annotator kai    # review_scores_fresh.csv
+```
+
+Turns come from the same pinned WildChat sample, outside the 300-turn label set (`--source label_set`
+reviews the 260 label items instead). Every offline sanitizer stage runs on each turn and their edits
+are pooled: the page highlights each distinct span without saying which tool made it. Mark each
+**personal** (private information about the writer or a real person: should change), **not
+personal**, or **unsure** (keys 1/2/3), then select anything personal no tool highlighted. Scores per
+stage: precision (its edits judged personal), pooled recall (share of real items it covers; items
+everyone missed are not counted) and clean turns edited. Turns some tool edited are oversampled
+(`review.edited_share`) and reweighted. Edits are frozen at `build`, so rule changes need `--force`.
+
 ### Storage
 Data is streamed column by column from the Hub; nothing is downloaded in full. Text is read only
 for row groups that contain sampled conversations, and only the user `content`/`role` fields.

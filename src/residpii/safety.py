@@ -78,6 +78,9 @@ SAFE_TEXT_COLUMNS = {
     "detectors", "dedup_status", "category_label",
     # labelling benchmark: vocabularies from configs/default.yaml, never data text
     "whose", "annotator", "label_stratum", "attribute", "gold",
+    # sanitizer (RQ4): stage names and model ids from code and config, never data text
+    "stage", "rewrite_model", "attacker_model", "eval_attacker_model", "judge_model",
+    "source",   # review set source: 'fresh' or 'label_set'
 }
 
 

@@ -86,9 +86,10 @@ class LabelApp:
         labeling.save_label(self.paths, self.ds, self.annotator, labeling.validate_record(body, self.lcfg, len(text)))
 
 
-def make_handler(app: LabelApp, port: int):
+def make_handler(app, port: int, page: str = "annotate.html"):
+    """`app` is a LabelApp or anything with the same methods (review.ReviewApp)."""
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
-    page = files("residpii").joinpath("annotate.html").read_bytes()
+    page = files("residpii").joinpath(page).read_bytes()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):   # request lines can contain item ids only, but keep the console quiet

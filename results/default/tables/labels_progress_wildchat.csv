@@ -1,5 +1,5 @@
 annotator,labelled,skipped,total,dataset
 kai,300,0,300,wildchat
-ethan,0,0,300,wildchat
+ethan,300,18,300,wildchat
 adjudicated,0,0,300,wildchat
 llm,300,23,300,wildchat
