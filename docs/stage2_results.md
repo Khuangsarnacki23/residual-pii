@@ -14,7 +14,7 @@ about 5% among the 25,325 eligible users. Every attribute is first reduced to a 
 (occupation group, country, health condition type, employer sector, and so on), so this is not an
 artefact of wording. Uniqueness rises steeply with activity: 15% of users with more than 50
 conversations, against 3% of those with 3. A user's conversations can be tied back together from their content for
-about 2% of users (chance: 0.1%), and about 10% of users with 26–50 conversations, almost all of it through direct identifiers.
+about 2% of users (chance: 0.05%), and about 10% of users with 26–50 conversations, almost all of it through direct identifiers.
 
 ## Sample and coverage
 
@@ -88,7 +88,7 @@ their two halves match each other better than any other user's half.
 | Direct identifiers (keyed hashes) | 1.5% | 1.0–2.0% | 59% |
 | Both | 2.1% | 1.6–2.7% | 31% |
 
-Chance is 0.1%. For users with 26–50 conversations, 9.8% are linked on both. Linkage needs both
+Chance is 0.05%. For users with 26–50 conversations, 9.8% are linked on both. Linkage needs both
 halves to reveal something, which only 7% of users do, so most of the low overall share is users
 who revealed nothing.
 

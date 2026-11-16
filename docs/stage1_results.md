@@ -45,7 +45,7 @@ and near zero for occupation and location, which were the main topics of adjudic
 
 | Category | Share of turns | 95% CI |
 |---|---|---|
-| Any private direct identifier | 1.6% | 0.5–2.6% |
+| Any private direct identifier | 1.5% | 0.5–2.6% |
 | Any private quasi-identifier | 7.6% | 4.3–11.5% |
 | Occupation | 4.5% | 1.9–7.9% |
 | Organization | 2.2% | 0.3–4.6% |
