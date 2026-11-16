@@ -133,3 +133,27 @@ labeling:
   # Span matching: a detector span matches a gold span if they overlap by at least this share of
   # the shorter span (0 = any overlap).
   min_overlap: 0.5
+
+# Layered sanitizer (RQ4): `residpii sanitize`. Layers 1-2 reuse stored detections; layers 3-4, the
+# evaluation attacker and the judge are hosted (opt-in, --allow-hosted) and see only label-set turns.
+sanitizer:
+  gold: kai
+  # Layer 1: Presidio pattern recognizers (no NER) plus the credential rules.
+  pattern_entities: [EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, IBAN_CODE, US_SSN, US_BANK_NUMBER,
+                     US_PASSPORT, US_DRIVER_LICENSE, US_ITIN, CRYPTO, MEDICAL_LICENSE, UK_NHS, IP_ADDRESS]
+  # Layer 2: direct identifiers the LLM detector judged private (writer or real third party).
+  llm_identifier_categories: [name, email, phone, account_id, ip_address, api_key_token, street_address,
+                              username_handle, personal_url, date_of_birth]
+  rewrite_model: claude-sonnet-5-5       # layers 3 and 4
+  attacker_model: claude-haiku-5-5       # inside the layer-4 loop
+  eval_attacker_model: claude-sonnet-5-5 # held out: a different, stronger model scores exposure
+  judge_model: claude-haiku-5-5          # utility rating
+  effort: medium
+  max_rounds: 3                          # layer-4 rewrites at most
+  confident: 4                           # attacker confidence (1-5) that counts as an inference
+  # Rule-based layers 2-3 (no LLM; configs/generalization.yaml). Precision/recall switches:
+  rules:
+    names_in_first_person: true            # also names in first-person sentences (not only letters, "my boss X")
+    organizations_in_first_person: false   # true: any organisation in a personal sentence, not only after
+                                           # "work at / studied at"; fewer leaks, about 2x the clean turns edited
+

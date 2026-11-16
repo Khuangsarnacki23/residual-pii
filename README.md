@@ -13,6 +13,8 @@ chat-log datasets after each dataset's own de-identification. All outputs are ag
 adjudicated, with Presidio and the secrets rules scored against it. Results and the summary line are
 in [docs/stage1_results.md](docs/stage1_results.md), with the LLM detector scored alongside. Stage 2
 (per-user identifiability, 2,000 WildChat users) is in [docs/stage2_results.md](docs/stage2_results.md).
+A pilot of a user-level adversarial sanitizer (50 users, against the per-message loop of Staab et al.)
+is in [docs/adversarial_pilot.md](docs/adversarial_pilot.md).
 LMSYS and Arena have no label sets. See [docs/limitations.md](docs/limitations.md).
 
 ## Setup

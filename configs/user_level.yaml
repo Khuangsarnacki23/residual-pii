@@ -36,3 +36,17 @@ uniqueness:
 
 identifiability:
   min_cell: 10                   # counts of 1..min_cell-1 users are blanked in every published table
+
+# User-level adversarial sanitizer (`residpii adversarial`, src/residpii/user_adversarial.py). Hosted,
+# opt-in. Models, effort and the confidence threshold come from `sanitizer:` in default.yaml.
+adversarial:
+  k: 5                         # stop once the user's smallest class (vs the Stage 2 sample) is >= k
+  strict_k: 10                 # user_level_strict: both attackers must put the user in a class >= this
+  max_rounds: 6                # targeted rounds per user
+  max_tries_per_attribute: 2   # then the attribute is left as it is
+  max_edit_share: 0.5          # reject a rewrite that changes more than this share of the message
+  min_utility: 4               # reject a rewrite the judge rates below this (1-5)
+  max_rewrite_chars: 8000      # longer messages are not rewritten (counted as too_long)
+  eval_max_chars: 60000        # held-out attacker reads at most this much of a user's history
+  pilot_at_risk: 40
+  pilot_control: 10
