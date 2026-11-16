@@ -64,8 +64,8 @@ class _Fake:
     """Attacker: 'nurse' -> occupation, 'Leeds' -> UK. Rewrites replace the cue words.
     The judge rates a rewrite 2 if it contains 'BROKEN', else 4."""
 
-    def __init__(self, break_rewrites=False):
-        self.calls, self.break_rewrites = [], break_rewrites
+    def __init__(self, break_rewrites=False, break_targeted=False):
+        self.calls, self.break_rewrites, self.break_targeted = [], break_rewrites, break_targeted
 
     def create(self, **kw):
         self.calls.append(kw)
@@ -74,7 +74,8 @@ class _Fake:
         turns = [t.split("\n</turn>")[0] for t in user.split("<turn>\n")[1:]]
         if "text" in props:
             new = turns[-1].replace("nurse", "worker").replace("Leeds", "a city")
-            body = {"text": new + (" BROKEN" if self.break_rewrites else "")}
+            broken = self.break_rewrites or (self.break_targeted and user.startswith("Someone who reads"))
+            body = {"text": new + (" BROKEN" if broken else "")}
         elif "inferences" in props:
             joined = " ".join(turns)
             body = {"inferences": ([{"attribute": "occupation", "value": "nurse", "confidence": 5, "cue": "nurse"}]
@@ -142,3 +143,17 @@ def test_history_attacker_sees_all_messages(tmp_path):
     prof = loops.held_out(BASE, list(BASE))
     assert prof == {"occupation_group": "29", "country": "united kingdom"}
     assert fake.calls[-1]["model"] == loops.s["eval_attacker_model"] != loops.s["attacker_model"]
+
+
+def test_history_loop_reads_whole_history_and_retries_gently(tmp_path):
+    fake = _Fake(break_targeted=True)                       # the strict rewrite breaks every request
+    loops, _ = _loops(tmp_path, fake)
+    start = {k: loops.attack(v) for k, v in BASE.items()}
+    texts, _, log = loops.user_level("me", BASE, start, CONV, list(BASE), history=True)
+    assert log["stop_reason"] == "safe" and log["gentle_kept"] == 1
+    assert sum(texts[k] != BASE[k] for k in BASE) == 1 and "BROKEN" not in "".join(texts.values())
+    hist_calls = [c for c in fake.calls if c["messages"][0]["content"].count("<turn>") == len(BASE)]
+    assert hist_calls and all(c["model"] == loops.s["attacker_model"] for c in hist_calls)
+    # Without history mode there is no gentle retry: the same rewrites are all undone.
+    texts2, _, log2 = loops.user_level("me", BASE, start, CONV)
+    assert texts2 == BASE and log2["gentle_kept"] == 0
