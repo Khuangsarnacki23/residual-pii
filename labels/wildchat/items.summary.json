@@ -1,0 +1,25 @@
+{
+  "nonempty_turns": 11436,
+  "eligible_turns": 11020,
+  "share_excluded_long": 0.0364,
+  "max_chars": 4000,
+  "strata": {
+    "rare_direct": {
+      "pool": 19,
+      "drawn": 19
+    },
+    "name": {
+      "pool": 2503,
+      "drawn": 119
+    },
+    "quasi_only": {
+      "pool": 1853,
+      "drawn": 74
+    },
+    "none": {
+      "pool": 6645,
+      "drawn": 88
+    }
+  },
+  "n_items": 300
+}

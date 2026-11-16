@@ -1,7 +1,7 @@
 {
   "pipeline_version": "0.1.0",
   "run_name": "default",
-  "config_hash": "5dfcf3653eb9cf84",
+  "config_hash": "6a716761194dc8d4",
   "datasets": {
     "wildchat": {
       "repo": "allenai/WildChat-1M",

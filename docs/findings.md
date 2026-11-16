@@ -127,7 +127,7 @@ and have not been run on the gold set.
 | No LLM: 1 + rule identifiers | 29% | 1% | 3.2% | 90% of 93 |
 | No LLM: + rule generalise | 48% | 12% | 3.4% | 80% of 120 |
 
-Source: `results/default/tables/sanitizer_*_adjudicated.csv`, with weighted 95% CIs. The direct
+Source: `results/default/tables/sanitizer_leakage.csv` and `sanitizer_overredaction.csv` (gold = adjudicated), with weighted 95% CIs. The direct
 removal rates have wide intervals (layers 1–2: 32–95%).
 
 **What it means.**

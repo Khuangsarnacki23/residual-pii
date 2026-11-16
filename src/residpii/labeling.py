@@ -412,13 +412,34 @@ def template_keys(turns: pd.DataFrame, tcfg: dict) -> pd.Series:
 _DIGITS = str.maketrans("0123456789", "0000000000")
 
 
+def template_config(cfg: dict) -> dict:
+    """Template settings: `labeling.templates` if set (older configs), else the top-level `templates`."""
+    return cfg["labeling"].get("templates") or cfg.get("templates") or {}
+
+
+def templated_conversations(turns: pd.DataFrame, tcfg: dict) -> set:
+    """(dataset, conversation_id) pairs with at least one templated user turn. Empty if exclusion is off.
+
+    Templates are found within each dataset's sample, so a prompt shared across datasets is not pooled.
+    """
+    if not tcfg.get("exclude"):
+        return set()
+    t = turns[turns["text"].str.strip().str.len() > 0]
+    out = set()
+    for ds, g in t.groupby("dataset"):
+        g = g.reset_index(drop=True)
+        key = template_keys(g, tcfg)
+        out |= {(ds, c) for c in g.loc[key.notna().to_numpy(), "conversation_id"]}
+    return out
+
+
 def drop_templates(cfg: dict, paths: Paths, ds: str, items: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """Removes label items whose turn is a shared prompt template. Returns (kept items, counts).
 
     Scoring then estimates rates over non-templated turns: the remaining items keep their weights,
     which already spread each stratum's pool over its draws, so the templated share drops out.
     """
-    tcfg = cfg["labeling"].get("templates") or {}
+    tcfg = template_config(cfg)
     if not tcfg.get("exclude"):
         return items, {"dataset": ds, "excluded": False}
     key = ["dataset", "conversation_id", "turn_index"]

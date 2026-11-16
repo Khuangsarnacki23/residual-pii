@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import analysis
+from . import analysis, labeling
 from .config import Paths
 from .llm_label import PRICES, _call, locate, prompt_version
 from .redactions import compile_patterns, placeholder_spans
@@ -257,6 +257,8 @@ def prevalence(cfg: dict, datasets: list[str]) -> dict[str, pd.DataFrame]:
         conv = conv.merge(sample[["dataset", "conversation_id", "weight", "stratum"]], on=["dataset", "conversation_id"])
         conv = conv.merge(tasks, on=["dataset", "conversation_id"], how="left")
         conv["is_story_roleplay"] = conv["is_story_roleplay"].fillna(False).astype(bool)
+        templ = labeling.templated_conversations(turns.assign(dataset=ds), labeling.template_config(cfg))
+        conv["is_template"] = [(d, c) in templ for d, c in zip(conv["dataset"], conv["conversation_id"])]
         prev.append(analysis.prevalence_table(conv, cfg, cfg["seed"]).query("detector != 'any'"))
     tables = {"llm_coverage": pd.DataFrame(cov)}
     if prev:

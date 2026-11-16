@@ -105,6 +105,34 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--at-risk", type=int, help="Default: adversarial.pilot_at_risk")
         p.add_argument("--controls", type=int, help="Default: adversarial.pilot_control")
 
+    rv = sub.add_parser("review", help="Blind human review of the sanitizers' edits (RQ4)")
+    rsub = rv.add_subparsers(dest="review_cmd", required=True)
+    rb = rsub.add_parser("build", help="Draw review turns and pool every sanitizer's edits")
+    rb.add_argument("--n", type=int, help="Number of turns (default: review.n_items)")
+    rb.add_argument("--force", action="store_true", help="Redraw even if a review set exists")
+    rs_ = rsub.add_parser("serve", help="Open the review page for one reviewer")
+    rs_.add_argument("--annotator", required=True)
+    rs_.add_argument("--port", type=int)
+    rsub.add_parser("refresh", help="Re-run current rules on the same turns; keep judgments, reopen new spans")
+    rc = rsub.add_parser("score", help="Precision / pooled recall of each sanitizer from the reviews")
+    rc.add_argument("--annotator", required=True)
+    for p in (rb, rs_, rc, rsub.choices["refresh"]):
+        p.add_argument("--config", required=True)
+        p.add_argument("--dataset", default="wildchat")
+        p.add_argument("--source", choices=["fresh", "label_set"], help="Default: review.source in the config")
+
+    sz = sub.add_parser("sanitize", help="Layered sanitizer (RQ4), evaluated on the labelled set")
+    sz.add_argument("--config", required=True)
+    sz.add_argument("--dataset", default="wildchat")
+    sz.add_argument("--gold", help="Gold annotator (default: sanitizer.gold in the config)")
+    sz.add_argument("--allow-hosted", action="store_true",
+                    help="Run layers 3-4, the evaluation attacker and the judge (sends label-set turns to Anthropic)")
+    sz.add_argument("--max-cost", type=float, default=15.0,
+                    help="Hard cap in USD on total sanitizer spend for this dataset, including earlier runs")
+    sz.add_argument("--workers", type=int, default=4)
+    sz.add_argument("--limit", type=int, help="Only the first N label items (for a pilot)")
+    sz.add_argument("--estimate", action="store_true", help="Print the estimated remaining cost and exit")
+
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
 
@@ -121,6 +149,45 @@ def main(argv: list[str] | None = None) -> int:
                   "no disk) and Arena. Re-run with --confirm to proceed.", file=sys.stderr)
             return 2
         print(Pipeline(cfg).dedup_corpus().to_string(index=False))
+        return 0
+
+    if args.cmd == "review":
+        from . import review
+
+        if args.review_cmd == "build":
+            try:
+                print(json.dumps(review.cmd_build(cfg, args.dataset, args.source, args.n, args.force), indent=2))
+            except FileExistsError as e:
+                print(f"[review] {e}", file=sys.stderr)
+                return 2
+        elif args.review_cmd == "refresh":
+            print(json.dumps(review.cmd_refresh(cfg, args.dataset, args.source), indent=2))
+        elif args.review_cmd == "serve":
+            review.serve(cfg, args.dataset, args.annotator, args.source, args.port)
+        else:
+            t = review.cmd_score(cfg, args.dataset, args.annotator, args.source)
+            print(t.drop(columns=["dataset", "source", "annotator"]).to_string(index=False))
+        return 0
+
+    if args.cmd == "sanitize":
+        from . import sanitize
+
+        gold = args.gold or cfg["sanitizer"]["gold"]
+        if args.estimate:
+            items, _, paths = sanitize.eval_set(cfg, args.dataset, gold)
+            items = items.iloc[: args.limit or None]
+            est = sanitize.estimate(items, sanitize.load_store(paths, args.dataset), cfg["sanitizer"])
+            print(json.dumps({**est, "spent_so_far_usd": round(sanitize.spent(paths, args.dataset), 3),
+                              "cap_usd": args.max_cost}, indent=2))
+            return 0
+        if args.allow_hosted:
+            print(json.dumps(sanitize.run_hosted(cfg, args.dataset, gold, args.max_cost, args.workers, args.limit),
+                             indent=2))
+        else:
+            print("[sanitize] offline layers only; add --allow-hosted for layers 3-4 (sends label-set turns "
+                  "to Anthropic).", file=sys.stderr)
+        for name, df in sanitize.cmd_sanitize(cfg, args.dataset, gold).items():
+            print(f"\n== {name}\n{df.drop(columns='dataset').to_string(index=False)}")
         return 0
 
     if args.cmd == "llm-detect":

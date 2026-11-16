@@ -314,8 +314,8 @@ def fig_stop_reasons():
 
 def fig_layered_sanitizer():
     """Kai's offline sanitizer stages scored against the adjudicated gold set."""
-    lk = pd.read_csv(S1 / "sanitizer_leakage_adjudicated.csv").query("metric == 'span_leak_rate'")
-    ov = pd.read_csv(S1 / "sanitizer_overredaction_adjudicated.csv").query("metric == 'clean_turns_changed'")
+    lk = pd.read_csv(S1 / "sanitizer_leakage.csv").query("metric == 'span_leak_rate'")
+    ov = pd.read_csv(S1 / "sanitizer_overredaction.csv").query("metric == 'clean_turns_changed'")
     stages = [("Presidio re-run", "presidio"), ("Layer 1: patterns", "patterns"),
               ("Layers 1-2: + LLM identifiers", "llm_identifiers"),
               ("No-LLM: 1 + rule identifiers", "rules_identifiers"), ("No-LLM: + rule generalise", "rules_generalize")]

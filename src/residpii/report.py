@@ -19,7 +19,8 @@ DATASET_COLORS = {"wildchat": "#2a78d6", "lmsys": "#eb6834", "arena": "#1baf7a"}
 DATASET_LABELS = {"wildchat": "WildChat-1M", "lmsys": "LMSYS-Chat-1M", "arena": "Chatbot Arena"}
 TEXT_PRIMARY, TEXT_SECONDARY, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 VARIANT_LABELS = {"all": "All conversations", "excl_story_roleplay": "Excluding story / role-play",
-                  "excl_arena_overlap": "Excluding Arena overlap"}
+                  "excl_arena_overlap": "Excluding Arena overlap",
+                  "incl_templates": "Including shared prompt templates"}
 
 
 TIER_LABELS = {"tier_direct": "any direct identifier", "tier_quasi": "any quasi-identifier"}

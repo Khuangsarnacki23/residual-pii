@@ -1,0 +1,27 @@
+{
+  "dataset": "lmsys",
+  "seed": 20268931,
+  "nonempty_turns": 9672,
+  "eligible_turns": 9672,
+  "share_excluded_long": 0.0,
+  "max_chars": 4000,
+  "strata": {
+    "rare_direct": {
+      "pool": 8,
+      "drawn": 8
+    },
+    "name": {
+      "pool": 762,
+      "drawn": 123
+    },
+    "quasi_only": {
+      "pool": 2133,
+      "drawn": 77
+    },
+    "none": {
+      "pool": 6769,
+      "drawn": 92
+    }
+  },
+  "n_items": 300
+}
