@@ -157,3 +157,12 @@ def test_history_loop_reads_whole_history_and_retries_gently(tmp_path):
     # Without history mode there is no gentle retry: the same rewrites are all undone.
     texts2, _, log2 = loops.user_level("me", BASE, start, CONV)
     assert texts2 == BASE and log2["gentle_kept"] == 0
+
+
+def test_strict_stop_needs_both_attackers_and_a_bigger_class(tmp_path):
+    loops, _ = _loops(tmp_path, _Fake())
+    start = {k: loops.attack(v) for k, v in BASE.items()}
+    texts, _, log = loops.user_level("me", BASE, start, CONV, list(BASE), strict=True)
+    # One attribute removed leaves a class of 13 >= 10 under both attackers: safe, one message changed.
+    assert log["stop_reason"] == "safe" and log["k_by_round"][-1] >= 10 and log["gentle_kept"] == 0
+    assert sum(texts[k] != BASE[k] for k in BASE) == 1

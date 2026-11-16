@@ -41,6 +41,7 @@ identifiability:
 # opt-in. Models, effort and the confidence threshold come from `sanitizer:` in default.yaml.
 adversarial:
   k: 5                         # stop once the user's smallest class (vs the Stage 2 sample) is >= k
+  strict_k: 10                 # user_level_strict: both attackers must put the user in a class >= this
   max_rounds: 6                # targeted rounds per user
   max_tries_per_attribute: 2   # then the attribute is left as it is
   max_edit_share: 0.5          # reject a rewrite that changes more than this share of the message
