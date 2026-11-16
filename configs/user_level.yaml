@@ -47,6 +47,10 @@ adversarial:
   max_edit_share: 0.5          # reject a rewrite that changes more than this share of the message
   min_utility: 4               # reject a rewrite the judge rates below this (1-5)
   max_rewrite_chars: 8000      # longer messages are not rewritten (counted as too_long)
+  # user_level_improved: the strict loop with a stronger rewrite step
+  improved_max_rounds: 10
+  improved_max_tries_per_attribute: 3
+  passage_chars: 4000          # in a message over max_rewrite_chars, rewrite only this much around the cue
   eval_max_chars: 60000        # held-out attacker reads at most this much of a user's history
   pilot_at_risk: 40
   pilot_control: 10

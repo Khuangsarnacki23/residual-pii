@@ -1,8 +1,11 @@
 """Presentation figures for the final report: reads only aggregate tables in results/ and writes
 PNGs to results/presentation/figures/. No raw text is read.
 
-    .venv/bin/python -m residpii.presentation
+    .venv/bin/python -m residpii.presentation          # report figures, with titles and footnotes
+    .venv/bin/python -m residpii.presentation --deck   # slide figures in the midterm deck's style, no
+                                                       # titles or footnotes (the slide carries them)
 """
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -22,6 +25,37 @@ BLUE, ORANGE, AQUA, YELLOW, MAGENTA, GREEN, VIOLET, RED = (
     "#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948")
 SURFACE, INK, INK2, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#8a8984", "#e6e5e1"
 
+DECK = False
+
+
+def apply_deck_style():
+    """The midterm deck's look: white ground, navy ink, its blue / gold / teal accents, Arial."""
+    global DECK, OUT, BLUE, ORANGE, AQUA, YELLOW, VIOLET, RED, SURFACE, INK, INK2, MUTED, GRID, METHODS
+    DECK = True
+    OUT = REPO_ROOT / "results" / "presentation" / "deck_figures"
+    BLUE, ORANGE, AQUA, VIOLET = "#2F5BB7", "#A16207", "#2A9D8F", "#14213D"
+    YELLOW, RED = "#A16207", "#7A8594"
+    SURFACE, INK, INK2, MUTED, GRID = "#FFFFFF", "#14213D", "#55606E", "#7A8594", "#E5E7EB"
+    METHODS = [("Per-message\n(Staab et al.)", "per_message", BLUE), ("User-level", "user_level", ORANGE),
+               ("User-level,\nwhole history", "user_level_history", AQUA),
+               ("User-level,\nstrict stop", "user_level_strict", VIOLET),
+               ("User-level,\nimproved rewrites", "user_level_improved", "#7A8594")]
+    plt.rcParams.update({"font.family": ["Arial", "Helvetica", "DejaVu Sans"], "font.size": 13,
+                         "axes.labelcolor": INK2, "axes.edgecolor": GRID, "axes.facecolor": SURFACE,
+                         "figure.facecolor": SURFACE, "xtick.color": INK2, "ytick.color": INK,
+                         "text.color": INK, "grid.color": GRID})
+
+
+def _title(target, text, **kw):
+    """Chart title (report figures only: on a slide the headline is the title)."""
+    if DECK:
+        return
+    if hasattr(target, "suptitle"):
+        target.suptitle(text, **kw)
+    else:
+        target.set_title(text, **kw)
+
+
 plt.rcParams.update({
     "font.family": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
     "font.size": 12, "axes.titlesize": 15, "axes.titleweight": "bold", "axes.titlelocation": "left",
@@ -38,7 +72,8 @@ def _pct(ax, axis="x"):
 
 
 def _note(fig, text):
-    fig._residpii_note = text
+    if not DECK:
+        fig._residpii_note = text
 
 
 def _save(fig, name):
@@ -79,7 +114,7 @@ def fig_residual_prevalence():
     ax.set_xlim(0, 0.135)
     ax.grid(axis="y", visible=False)
     ax.set_xlabel("Share of WildChat user turns (weighted, 95% CI)")
-    ax.set_title("After WildChat's own scrubbing, 1 in 13 turns still holds a private quasi-identifier")
+    _title(ax, "After WildChat's own scrubbing, 1 in 13 turns still holds a private quasi-identifier")
     ax.legend(handles=[plt.Rectangle((0, 0), 1, 1, color=BLUE), plt.Rectangle((0, 0), 1, 1, color=ORANGE)],
               labels=["Direct identifier", "Quasi-identifier"], loc="lower right")
     _note(fig, "Adjudicated gold set, 260 scored turns, 94 private spans. "
@@ -114,7 +149,7 @@ def fig_detector_pr():
     ax.set_xlim(0, 1), ax.set_ylim(0, 1)
     ax.set_xlabel("Recall: share of the remaining private PII found")
     ax.set_ylabel("Precision: share of flags that are private PII")
-    ax.set_title("An LLM is far more precise than Presidio,\nbut no tool finds most of what is left")
+    _title(ax, "An LLM is far more precise than Presidio,\nbut no tool finds most of what is left")
     _note(fig, "Adjudicated gold set; bars are 95% bootstrap CIs. Presidio at threshold 0.5 "
                "(0.3-0.85 gives 3.5-4.3% precision). LLM = Claude Haiku 5.5.")
     _save(fig, "rq2_detector_precision_recall")
@@ -144,9 +179,9 @@ def fig_recall_by_category():
     ax.set_ylim(0, 1.05)
     ax.grid(axis="x", visible=False)
     ax.set_ylabel("Recall on the gold set")
-    ax.set_title("Occupation and education, the most common leftovers, are missed by every tool")
+    _title(ax, "Occupation and education, the most common leftovers, are missed by every tool")
     ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3)
-    ax.set_title("Occupation and education, the most common leftovers, are missed by every tool", pad=36)
+    _title(ax, "Occupation and education, the most common leftovers, are missed by every tool", pad=36)
     ax.axvspan(4.55, 6.45, color=RED, alpha=0.06, zorder=0)
     _note(fig, "Recall of private spans (self or third party). Small counts: per-category values are "
                "indicative. 'All spans' counts the LLM's marks whoever it thought they belong to.")
@@ -175,7 +210,7 @@ def fig_attributes():
     ax.set_xlim(0, 0.16)
     ax.grid(axis="y", visible=False)
     ax.set_xlabel("Share of 1,982 WildChat users (stated or inferred, across all their conversations)")
-    ax.set_title("1 in 7 users reveals at least one attribute about themselves")
+    _title(ax, "1 in 7 users reveals at least one attribute about themselves")
     _note(fig, "Religion, political views and income: fewer than 10 users each (not shown).")
     _save(fig, "rq3_attributes_revealed")
 
@@ -198,7 +233,7 @@ def fig_activity():
     ax.grid(axis="x", visible=False)
     ax.set_xlabel("Conversations per user")
     ax.set_ylabel("Share of users (95% CI)")
-    ax.set_title("The more a user chats, the more they can be singled out")
+    _title(ax, "The more a user chats, the more they can be singled out")
     ax.legend(loc="upper left")
     _note(fig, "1,982 WildChat users. Overall: 5.9% unique, 2.1% re-linked (chance 0.05%). "
                "Uniqueness is within the 1,982-user sample; no identities were sought.")
@@ -220,7 +255,7 @@ def fig_uniqueness_curve():
     ax.set_ylim(0, 0.08)
     ax.set_xlabel("Attributes combined (at most)")
     ax.set_ylabel("Users unique in the sample")
-    ax.set_title("One attribute rarely singles anyone out; two do")
+    _title(ax, "One attribute rarely singles anyone out; two do")
     ax.legend(loc="lower right")
     _note(fig, "1,982 users, coarsened attributes, bootstrap 95% CI. Population model: 4.8% of 25,325 eligible users.")
     _save(fig, "rq3_uniqueness_by_attributes")
@@ -230,11 +265,13 @@ def fig_uniqueness_curve():
 
 # Users at risk before rewriting under the held-out attacker who are still at risk after
 # (of 23): from the pilot's per-user records, reported in docs/adversarial_pilot.md.
-STILL_AT_RISK = {"per_message": 13, "user_level": 18, "user_level_history": 20, "user_level_strict": 17}
+STILL_AT_RISK = {"per_message": 13, "user_level": 18, "user_level_history": 20, "user_level_strict": 17,
+                 "user_level_improved": 17}
 METHODS = [("Per-message\n(Staab et al.)", "per_message", BLUE),
            ("User-level", "user_level", ORANGE),
            ("User-level,\nwhole history", "user_level_history", AQUA),
-           ("User-level,\nstrict stop", "user_level_strict", VIOLET)]
+           ("User-level,\nstrict stop", "user_level_strict", VIOLET),
+           ("User-level,\nimproved rewrites", "user_level_improved", GREEN)]
 
 
 def _adv():
@@ -247,11 +284,12 @@ def fig_sanitizer_tradeoff():
     fig, ax = plt.subplots(figsize=(9.5, 6.2))
     ax.scatter(0, 23, s=130, color=MUTED, edgecolor=SURFACE, linewidth=2, zorder=3)
     ax.annotate("Before rewriting\n23 at risk", (0, 23), xytext=(10, -4), textcoords="offset points", fontsize=11)
-    offs = {"per_message": (-10, 10), "user_level": (10, -14), "user_level_history": (10, 2), "user_level_strict": (10, -26)}
+    offs = {"per_message": (-10, 10), "user_level": (-12, 4), "user_level_history": (10, 2), "user_level_strict": (10, -26),
+            "user_level_improved": (12, 6)}
     for lab, m, col in METHODS:
         x, y = a.loc[m].share_turns_changed, STILL_AT_RISK[m]
         ax.scatter(x, y, s=150, color=col, edgecolor=SURFACE, linewidth=2, zorder=3)
-        ha = "right" if m == "per_message" else "left"
+        ha = "right" if m in ("per_message", "user_level") else "left"
         ax.annotate(f"{lab.replace(chr(10), ' ')}\n{y} at risk, {x:.1%} of messages changed", (x, y),
                     xytext=offs[m], textcoords="offset points", fontsize=11, ha=ha)
     _pct(ax, "x")
@@ -260,7 +298,7 @@ def fig_sanitizer_tradeoff():
     ax.set_ylim(10, 25)
     ax.set_xlabel("Share of the 1,934 user messages rewritten")
     ax.set_ylabel("Users still at risk (of 23 at risk before)")
-    ax.set_title("User-level rewriting edits far less, but protects fewer users")
+    _title(ax, "User-level rewriting edits far less, but protects fewer users")
     ax.annotate("better", xy=(0.002, 11.2), xytext=(0.03, 13.5), fontsize=10, color=MUTED,
                 arrowprops=dict(arrowstyle="->", color=MUTED))
     _note(fig, "50-user pilot; at risk = held-out Claude Sonnet 5.5 attacker puts the user in a class under 5. "
@@ -273,7 +311,7 @@ def fig_sanitizer_panels():
     panels = [("Users still at risk (of 23)", lambda m: STILL_AT_RISK[m], "{:.0f}", (0, 24)),
               ("Messages rewritten", lambda m: a.loc[m].share_turns_changed, "{:.1%}", (0, 0.17)),
               ("Rewrites the judge rates usable (≥4/5)", lambda m: a.loc[m].share_utility_ge4, "{:.0%}", (0, 1.12))]
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(17, 5.2))
     for ax, (title, f, fmt, lim) in zip(axes, panels):
         for i, (lab, m, col) in enumerate(METHODS):
             v = f(m)
@@ -286,7 +324,7 @@ def fig_sanitizer_panels():
         if "%" in fmt:
             _pct(ax, "y")
             ax.yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(0.04 if lim[1] < 0.5 else 0.2))
-    fig.suptitle("Four sanitizer loops on the same 50 users", x=0.01, ha="left", fontsize=16, fontweight="bold")
+    _title(fig, "Four sanitizer loops on the same 50 users", x=0.01, ha="left", fontsize=16, fontweight="bold")
     fig.tight_layout(rect=(0, 0.05, 1, 0.95))
     _note(fig, "User-level loops discard rewrites rated below 4 (47-56 each), so their 100% is partly by construction.")
     _save(fig, "rq4_sanitizer_panels")
@@ -307,7 +345,7 @@ def fig_stop_reasons():
     ax.set_xlim(0, 50), ax.set_yticks([]), ax.grid(False)
     ax.spines["left"].set_visible(False)
     ax.set_xlabel("Users (strict-stop loop, 50 users)")
-    ax.set_title("Half the users never reach the target: the rewrite step is the bottleneck")
+    _title(ax, "Half the users never reach the target: the rewrite step is the bottleneck")
     _note(fig, "Over the run: 56 rewrites undone by the utility check; 29 times the cue was in a message over 8,000 characters.")
     _save(fig, "rq4_stop_reasons")
 
@@ -321,6 +359,8 @@ def fig_layered_sanitizer():
               ("Layers 1-4: + adversarial loop", "adversarial"),
               ("No-LLM: 1 + rule identifiers", "rules_identifiers"), ("No-LLM: + rule generalise", "rules_generalize")]
     ut = pd.read_csv(S1 / "sanitizer_utility.csv").query("metric == 'share_score_4_plus'").set_index("stage")
+    # Rule stages appear once they have been re-scored (their utility rows exist); the deck leaves them out.
+    stages = [st for st in stages if st[1] in ut.index and not (DECK and st[1].startswith("rules"))]
     fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(16, 6.6), gridspec_kw={"width_ratios": [1.6, 0.8, 0.8]})
     h = 0.36
     for j, (lab, tier, col) in enumerate([("Direct identifiers", "direct", BLUE), ("Quasi-identifiers", "quasi", ORANGE)]):
@@ -356,9 +396,10 @@ def fig_layered_sanitizer():
     a3.invert_yaxis()
     _pct(a3)
     a3.set_xlim(0, 0.12)
+    a3.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(0.04))
     a3.grid(axis="y", visible=False)
     a3.set_title("Turns the judge rates worse (<4/5)", fontsize=13)
-    fig.suptitle("Only the adversarial layer removes most quasi-identifiers, and it costs less than Presidio",
+    _title(fig, "Only the adversarial layer removes most quasi-identifiers, and it costs less than Presidio",
                  x=0.01, ha="left", fontsize=16, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.86))
     _note(fig, "Kai's layered sanitizer on the 260-turn adjudicated gold set (weighted, 95% CI). A span counts as removed "
@@ -367,6 +408,8 @@ def fig_layered_sanitizer():
 
 
 def main():
+    if "--deck" in sys.argv[1:]:
+        apply_deck_style()
     for f in (fig_layered_sanitizer,fig_residual_prevalence, fig_detector_pr, fig_recall_by_category, fig_attributes,
               fig_uniqueness_curve, fig_activity, fig_sanitizer_tradeoff, fig_sanitizer_panels, fig_stop_reasons):
         f()

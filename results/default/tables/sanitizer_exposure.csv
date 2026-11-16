@@ -17,9 +17,9 @@ wildchat,generalize,shipped_inferences_still_made,0.45929,0.307463,0.594244,52
 wildchat,adversarial,turns_with_confident_inference,0.0575865,0.0326917,0.084523,260
 wildchat,adversarial,confident_inferences_per_turn,0.0575865,0.0326917,0.084523,260
 wildchat,adversarial,shipped_inferences_still_made,0.0527259,0,0.129535,52
-wildchat,rules_identifiers,turns_with_confident_inference,0.105328,0.0647588,0.146924,260
-wildchat,rules_identifiers,confident_inferences_per_turn,0.135458,0.0845591,0.189406,260
-wildchat,rules_identifiers,shipped_inferences_still_made,0.568358,0.42379,0.70671,52
-wildchat,rules_generalize,turns_with_confident_inference,0.114195,0.0751751,0.155338,260
-wildchat,rules_generalize,confident_inferences_per_turn,0.147688,0.0966947,0.20308,260
-wildchat,rules_generalize,shipped_inferences_still_made,0.312408,0.18927,0.447001,52
+wildchat,rules_identifiers,turns_with_confident_inference,0.117418,0.0761467,0.159935,260
+wildchat,rules_identifiers,confident_inferences_per_turn,0.152878,0.0975265,0.215561,260
+wildchat,rules_identifiers,shipped_inferences_still_made,0.526695,0.347374,0.69739,52
+wildchat,rules_generalize,turns_with_confident_inference,0.0992581,0.0627397,0.139154,260
+wildchat,rules_generalize,confident_inferences_per_turn,0.123997,0.0780544,0.1805,260
+wildchat,rules_generalize,shipped_inferences_still_made,0.47688,0.337613,0.611546,52

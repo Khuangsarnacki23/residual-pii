@@ -127,8 +127,8 @@ rates whether the request can still be answered. Layers 3–4 cost $4.93 for the
 | Layers 1–2: + LLM identifiers | 62% | 0% | 0.1% | 23% of 39 |
 | Layers 1–3: + LLM generalise | 84% | 12% | 9.9% | |
 | Layers 1–4: + adversarial loop | 84% | **63%** | 14.4% | |
-| No LLM: 1 + rule identifiers | 29% | 1% | 3.2% | 90% of 93 |
-| No LLM: + rule generalise | 48% | 12% | 3.4% | 80% of 120 |
+| No LLM: 1 + rule identifiers | 38% | 1% | 6.1% | 92% of 115 |
+| No LLM: + rule generalise | 57% | 12% | 6.3% | 84% of 142 |
 
 | Stage | Turns rated worse (judge <4/5) | Turns with a confident inference (held-out attacker) | Original inferences still made |
 |---|---|---|---|
@@ -137,11 +137,14 @@ rates whether the request can still be answered. Layers 3–4 cost $4.93 for the
 | Layers 1–2 | 0.0% | 11.9% | 55% |
 | Layers 1–3 | 0.3% | 11.9% | 46% |
 | Layers 1–4 | 3.2% | **5.8%** | **5%** |
-| No LLM: + rule generalise | 1.3% | 11.4% | 31% |
+| No LLM: + rule generalise | 1.7% | 9.9% | 48% |
 
 Sources: `results/default/tables/sanitizer_leakage.csv`, `sanitizer_overredaction.csv`,
 `sanitizer_exposure.csv` and `sanitizer_utility.csv` (gold = adjudicated), with weighted 95% CIs.
 The intervals are wide (layers 1–4, quasi removed: 39–83%).
+The rule-based rows use Kai's latest rules, which keep public figures, fictional characters and
+common first names, and redact names outside stories. Compared with his earlier rules, they remove
+more direct identifiers (38% against 29%) but change twice as many clean turns (6% against 3%).
 
 **What it means.**
 - **The LLM layer is the precise way to remove identifiers.** Layers 1–2 remove nearly as many
@@ -183,6 +186,7 @@ sees.
 | User-level | 18 | 126 (6.5%) | 12% | 4.6 | 100% |
 | User-level, whole history | 20 | **67 (3.5%)** | 10% | 4.6 | 100% |
 | User-level, strict stop | 17 | 161 (8.3%) | 12% | 4.6 | 100% |
+| User-level, improved rewrites | 17 | 183 (9.5%) | 13% | 4.5 | 100% |
 
 ![Why the loop stops](../results/presentation/figures/rq4_stop_reasons.png)
 
@@ -235,12 +239,14 @@ sees.
   31% to 30%, all well inside the confidence intervals.
 - Stage 2 includes turns that repeat a shared prompt (13% of its turns, mostly one user reusing
   their own prompt). Dropping them leaves uniqueness at 5.9%.
-- All models ran at low or medium effort and with cheap tiers. The total API spend was about $19.
+- All models ran at low or medium effort and with cheap tiers. The total API spend was about $21.
 
 ## Next steps
 
-1. Strengthen the rewrite step: retry gently when a rewrite fails the utility check, and rewrite
-   only the relevant part of long messages (about $1–2).
+1. Locate the identifying passage in long messages by attacking them passage by passage. A first
+   attempt at a stronger rewrite step (gentle retries, more rounds) did not protect more users, and
+   its long-message fix never fired because the attacker describes its evidence rather than quoting
+   it (`docs/adversarial_pilot.md`).
 2. Use a stronger attacker inside the loop (Sonnet, with Opus held out), at about $15–20.
 3. Re-run the chosen loop on 200 or more users so the differences can be tested.
 4. Build a larger, two-annotator gold set for attributes.

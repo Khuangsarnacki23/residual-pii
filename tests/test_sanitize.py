@@ -196,3 +196,14 @@ def test_public_fictional_and_common_names_are_kept():
     # An unlisted full name is redacted under the wide option; with lists off, celebrities are too.
     assert "Priya Raman" not in _run("Summarise the email from Priya Raman about the budget.", options=wide)
     assert "Elon Musk" not in _run("What did Elon Musk say?", options={**wide, "public_name_lists": False})
+
+
+def test_stale_attack_results_rerun_after_a_rule_change():
+    t_old, t_new = "I am a nurse", "I am a [OCCUPATION]"
+    rec = {"item_id": "i1", "step": "attack:rules_generalize", "inferences": [], "error": None}
+    assert not sanitize.fresh(rec, "rules_generalize", t_new)        # legacy record, rule stage: re-run
+    assert sanitize.fresh(rec, "presidio", t_new)                    # legacy record, unchanged stage: kept
+    rec["text_sha"] = sanitize.text_sha(t_old)
+    assert sanitize.fresh(rec, "rules_generalize", t_old)
+    assert not sanitize.fresh(rec, "rules_generalize", t_new)        # text changed since it was scored
+    assert not sanitize.fresh({**rec, "error": "x"}, "rules_generalize", t_old)

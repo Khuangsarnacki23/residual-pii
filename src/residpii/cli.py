@@ -176,7 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.estimate:
             items, _, paths = sanitize.eval_set(cfg, args.dataset, gold)
             items = items.iloc[: args.limit or None]
-            est = sanitize.estimate(items, sanitize.load_store(paths, args.dataset), cfg["sanitizer"])
+            offline, _ = sanitize.offline_texts(cfg, args.dataset, items, paths)
+            est = sanitize.estimate(items, sanitize.load_store(paths, args.dataset), cfg["sanitizer"], offline)
             print(json.dumps({**est, "spent_so_far_usd": round(sanitize.spent(paths, args.dataset), 3),
                               "cap_usd": args.max_cost}, indent=2))
             return 0

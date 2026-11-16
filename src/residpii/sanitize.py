@@ -32,6 +32,7 @@ Evaluation (on non-templated label items, design-weighted like the precision/rec
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -268,18 +269,51 @@ def _turn(text: str) -> str:
     return f"<turn>\n{text}\n</turn>"
 
 
-def plan_steps(items: pd.DataFrame, store: dict) -> list[tuple[str, str]]:
-    """(item_id, step) pairs still to do, in dependency order per item."""
+# Attacker and judge results record a hash of the text they scored, so a rule change re-runs them.
+# Older records have no hash: they are trusted for stages whose text has not changed since they were
+# written, and re-run for the rule-based stages, which change whenever the rules do.
+_LEGACY_OK = {"shipped", "presidio", "patterns", "llm_identifiers", "generalize", "adversarial"}
+
+
+def text_sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def fresh(rec: dict | None, stage: str, text: str | None) -> bool:
+    """A stored attack/judge result is usable for this stage's current text."""
+    if not rec or rec.get("error"):
+        return False
+    h = rec.get("text_sha")
+    if h is None:
+        return stage in _LEGACY_OK
+    return text is not None and h == text_sha(text)
+
+
+def stage_texts(texts: dict, store: dict, iid: str) -> dict[str, str | None]:
+    """Each stage's current text for one item: offline stages from `texts`, layers 3-4 from the store."""
+    out = {s: texts[s].get(iid) for s in OFFLINE if s in texts}
+    for s in ("generalize", "adversarial"):
+        out[s] = (store.get((iid, s)) or {}).get("text")
+    return out
+
+
+def plan_steps(items: pd.DataFrame, store: dict, texts: dict | None = None) -> list[tuple[str, str]]:
+    """(item_id, step) pairs still to do, in dependency order per item. With `texts` (offline stage
+    texts), attacker and judge results for text that has since changed count as still to do."""
     todo = []
     for iid in items["item_id"]:
+        cur = stage_texts(texts, store, iid) if texts is not None else {}
         for step in ["generalize", "adversarial", *[f"attack:{s}" for s in STAGES],
                      *[f"judge:{s}" for s in STAGES if s != "shipped"]]:
-            if (iid, step) not in store or store[(iid, step)].get("error"):
+            rec = store.get((iid, step))
+            kind, _, stage = step.partition(":")
+            ok = fresh(rec, stage, cur.get(stage)) if (stage and texts is not None) else bool(rec and not rec.get("error"))
+            if not ok:
                 todo.append((iid, step))
     return todo
 
 
-def estimate(items: pd.DataFrame, store: dict, scfg: dict) -> dict:
+def estimate(items: pd.DataFrame, store: dict, scfg: dict, texts_by_stage: dict | None = None) -> dict:
     """Rough upper-bound cost of the remaining hosted steps (chars/3.5 tokens; worst-case loop rounds)."""
     from .llm_label import PRICES
 
@@ -288,7 +322,7 @@ def estimate(items: pd.DataFrame, store: dict, scfg: dict) -> dict:
         return (tin * pin + tout * pout) / 1e6
 
     texts = dict(zip(items["item_id"], items["text"]))
-    total, steps = 0.0, plan_steps(items, store)
+    total, steps = 0.0, plan_steps(items, store, texts_by_stage)
     for iid, step in steps:
         t = len(texts[iid]) / 3.5 + 600
         kind = step.split(":")[0]
@@ -370,27 +404,29 @@ def run_hosted(cfg: dict, ds: str, gold_from: str, max_cost: float, workers: int
             for s in STAGES:
                 if text.get(s) is None:
                     continue
-                if not have(f"attack:{s}") and budget_ok():
+                if not fresh(store.get((iid, f"attack:{s}")), s, text[s]) and budget_ok():
                     out, meta = call(scfg["eval_attacker_model"], ATTACK, _turn(text[s]), schemas["attack"])
-                    _append(paths, ds, {"item_id": iid, "step": f"attack:{s}",
+                    _append(paths, ds, {"item_id": iid, "step": f"attack:{s}", "text_sha": text_sha(text[s]),
                                         "inferences": out["inferences"] if out else None, "cost_usd": meta["cost_usd"],
                                         "error": None if out else meta["stop_reason"]})
-                if s != "shipped" and not have(f"judge:{s}") and budget_ok():
+                if s != "shipped" and not fresh(store.get((iid, f"judge:{s}")), s, text[s]) and budget_ok():
                     if text[s] == text["shipped"]:
                         _append(paths, ds, {"item_id": iid, "step": f"judge:{s}", "score": 5, "cost_usd": 0.0,
+                                            "text_sha": text_sha(text[s]),
                                             "unchanged": True, "error": None})
                         continue
                     out, meta = call(scfg["judge_model"], JUDGE,
                                      f"<original>\n{text['shipped']}\n</original>\n<sanitized>\n{text[s]}\n</sanitized>",
                                      schemas["judge"])
                     _append(paths, ds, {"item_id": iid, "step": f"judge:{s}", "score": out["score"] if out else None,
+                                        "text_sha": text_sha(text[s]),
                                         "cost_usd": meta["cost_usd"], "error": None if out else meta["stop_reason"]})
         except Exception as e:   # recorded; the step is retried on the next run
             stats["failed"] += 1
             print(f"[sanitize] {iid}: {type(e).__name__}: {str(e).splitlines()[0][:200] if str(e) else ''}",
                   file=sys.stderr, flush=True)
 
-    todo = list(dict.fromkeys(i for i, _ in plan_steps(items, load_store(paths, ds))))
+    todo = list(dict.fromkeys(i for i, _ in plan_steps(items, load_store(paths, ds), texts)))
     print(f"[sanitize] {ds}: {len(todo)} items with hosted steps left; spent so far ${lock_cost[0]:.2f} "
           f"of ${max_cost:.2f}", file=sys.stderr, flush=True)
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -514,7 +550,8 @@ def evaluate(cfg: dict, ds: str, gold_from: str) -> dict[str, pd.DataFrame]:
 
         # Exposure: the held-out attacker's confident inferences.
         att = {i: store[(i, f"attack:{stage}")]["inferences"] for i in ids
-               if (i, f"attack:{stage}") in store and store[(i, f"attack:{stage}")].get("inferences") is not None}
+               if fresh(store.get((i, f"attack:{stage}")), stage, texts[stage].get(i))
+               and store[(i, f"attack:{stage}")].get("inferences") is not None}
         if att:
             base = {i: store[(i, "attack:shipped")]["inferences"] for i in att
                     if (i, "attack:shipped") in store and store[(i, "attack:shipped")].get("inferences") is not None}
@@ -540,7 +577,8 @@ def evaluate(cfg: dict, ds: str, gold_from: str) -> dict[str, pd.DataFrame]:
         # Utility.
         if stage != "shipped":
             sc = {i: store[(i, f"judge:{stage}")]["score"] for i in ids
-                  if (i, f"judge:{stage}") in store and store[(i, f"judge:{stage}")].get("score") is not None}
+                  if fresh(store.get((i, f"judge:{stage}")), stage, texts[stage].get(i))
+                  and store[(i, f"judge:{stage}")].get("score") is not None}
             if sc:
                 sub = done[done["item_id"].isin(sc.keys())].reset_index(drop=True)
                 w2, st2 = sub["label_weight"].to_numpy(float), sub["label_stratum"].to_numpy()

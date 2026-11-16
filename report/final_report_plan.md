@@ -146,8 +146,8 @@ LLM-only categories, private, as WildChat / LMSYS / Arena:
 | Layers 1–2: + LLM identifiers | 62% | 0% | 0.1% | 0.0% | 55% |
 | Layers 1–3: + LLM generalise | 84% | 12% | 9.9% | 0.3% | 46% |
 | Layers 1–4: + adversarial loop | 84% | 63% [39–83] | 14.4% | 3.2% | 5% |
-| No LLM: rule identifiers | 29% | 1% | 3.2% | 0.3% | 57% |
-| No LLM: + rule generalise | 48% | 12% | 3.4% | 1.3% | 31% |
+| No LLM: rule identifiers | 38% | 1% | 6.1% | 0.7% | 53% |
+| No LLM: + rule generalise | 57% | 12% | 6.3% | 1.7% | 48% |
 
 - Sources: `sanitizer_exposure.csv` and `sanitizer_utility.csv` alongside the two tables above.
 - Layers 3–4 cost $4.93 for the 260 turns.
@@ -164,8 +164,8 @@ LLM-only categories, private, as WildChat / LMSYS / Arena:
 |---|---|---|---|
 | Presidio | 13% | 41% | 12% |
 | Layers 1–2: LLM identifiers | 71% | 24% | 0.3% |
-| No LLM: rule identifiers | 100% | 14% | 0% |
-| No LLM: + rule generalise | 79% | 24% (quasi: 38%) | 0.9% |
+| No LLM: rule identifiers | 57% | 23% | 1.5% |
+| No LLM: + rule generalise | 61% | 34% (quasi: 38%) | 2.4% |
 
 **User-level adversarial pilot** (50 users; a held-out Sonnet attacker grades each user's whole history)
 
@@ -173,9 +173,12 @@ LLM-only categories, private, as WildChat / LMSYS / Arena:
 |---|---|---|---|
 | Per-message (Staab et al.) | 13 | 14.4% | 76% |
 | User-level, strict stop | 17 | 8.3% | 100% |
+| User-level, improved rewrites | 17 | 9.5% | 100% |
 
 The difference in users protected is not significant (p = 0.73). The user-level loop edits about
-half as much, and the rewrite step is now the bottleneck.
+half as much, and the rewrite step is now the bottleneck. A stronger rewrite step (gentle retries,
+more rounds) did not change protection (17 still at risk); its long-message fix never fired because
+the attacker's cues are descriptions, not quotes.
 
 LaTeX table to drop in:
 

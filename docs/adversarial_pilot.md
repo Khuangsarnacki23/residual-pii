@@ -50,6 +50,7 @@ Held-out attacker, all 50 users (23 at risk before rewriting).
 | User-level | 18 | 40% | 26% | 126 (6.5%) | 12% | 4.6 | 100% |
 | User-level, whole history | 20 | 42% | 30% | **67 (3.5%)** | 10% | 4.6 | 100% |
 | User-level, strict stop | 17 | 36% | 26% | 161 (8.3%) | 12% | 4.6 | 100% |
+| User-level, improved rewrites | 17 | 38% | 26% | 183 (9.5%) | 13% | 4.5 | 100% |
 
 \* Mean share of a changed message's characters that the rewrite did not keep.
 
@@ -82,6 +83,34 @@ Held-out attacker, all 50 users (23 at risk before rewriting).
 4. **Targeting works.** Every user-level version edits far less than the per-message loop and keeps
    rewrites usable, so the cost of protection is much lower per message changed.
 
+## Follow-up: a stronger rewrite step (`user_level_improved`)
+
+The strict loop with three changes to the rewrite step, run on the same 50 users (about $1 more;
+earlier calls came from the cache):
+
+- a rejected rewrite gets one gentler retry;
+- in a message over 8,000 characters, only the passage around the attacker's cue is rewritten;
+- up to 10 rounds and 3 tries per attribute (instead of 6 and 2).
+
+| | Strict stop | Improved rewrites |
+|---|---|---|
+| At-risk users still at risk (of 23) | 17 | 17 |
+| Users reaching the target | 25 | 27 |
+| Rewrites kept | 228 | 279 |
+| Rewrites rejected by the utility check | 56 | 139 |
+| Kept after a gentler retry | 0 | 28 |
+| Long-message passages rewritten | 0 | 0 |
+| Stopped: out of rounds / no attribute left | 13 / 12 | 4 / 19 |
+| Messages changed | 161 (8.3%) | 183 (9.5%) |
+
+It did not protect more users. The gentle retry recovered 28 rewrites, but the extra rounds mostly
+produced rewrites the utility check rejected, and more users ran out of attributes to try instead
+of rounds. The long-message change never fired. The attacker prompt asks for a cue as "a few words
+from the message or a short description of the evidence"; on the 57 long messages, all 45 confident
+cues were descriptions (median 111 characters), none appeared verbatim, so no passage could be
+located. Locating the passage needs a different method, such as attacking a long message passage by
+passage, or asking the attacker for an exact quote.
+
 ## Limitations
 
 - 50 users and one dataset: a pilot, not an estimate. Differences of 4–5 users are within noise.
@@ -100,10 +129,8 @@ Held-out attacker, all 50 users (23 at risk before rewriting).
 
 ## Next
 
-- Make the rewrite step try harder: a gentler second rewrite when the utility check fails, rewriting
-  only the relevant part of long messages, and more tries per attribute (about $1–2 more on the same
-  users, since earlier calls are cached).
+- Find the identifying passage in long messages by attacking them passage by passage (the cue-text
+  approach above cannot work with descriptive cues).
 - A stronger loop attacker (Sonnet in the loop, Opus as the held-out grader), at roughly $15–20.
 - A larger sample (200+ users) once one version is chosen, so differences can be tested.
-- Run Kai's pipeline on the adjudicated gold set to check that the user-level loop does not leak
-  more labelled PII per message.
+- Kai's full pipeline is now scored on the adjudicated gold set (see `docs/findings.md`, RQ4).

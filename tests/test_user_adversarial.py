@@ -166,3 +166,32 @@ def test_strict_stop_needs_both_attackers_and_a_bigger_class(tmp_path):
     # One attribute removed leaves a class of 13 >= 10 under both attackers: safe, one message changed.
     assert log["stop_reason"] == "safe" and log["k_by_round"][-1] >= 10 and log["gentle_kept"] == 0
     assert sum(texts[k] != BASE[k] for k in BASE) == 1
+
+
+def test_cue_window_finds_the_passage():
+    text = "intro line\n" + "x" * 50 + "\nI am a nurse here\n" + "y" * 50
+    s0, s1 = ua.cue_window(text, [{"cue": "nurse"}], 30)
+    assert "nurse" in text[s0:s1] and s1 - s0 <= 60
+    assert ua.cue_window(text, [{"cue": "pilot"}], 30) is None
+
+
+def test_improved_rewrites_a_passage_of_a_long_message(tmp_path):
+    loops, _ = _loops(tmp_path, _Fake())
+    loops.a = {**loops.a, "max_rewrite_chars": 60, "passage_chars": 40, "strict_k": 20}   # both attributes must go
+    long_msg = "filler " * 20 + "\nI am a nurse and need a rota\n" + "more " * 20
+    base = {"a#0": long_msg, "b#0": BASE["b#0"], "c#0": BASE["c#0"]}
+    start = {k: loops.attack(v) for k, v in base.items()}
+    # The strict loop skips the long message; the improved loop rewrites only the passage around the cue.
+    _, _, strict_log = loops.user_level("me", base, start, CONV, list(base), strict=True)
+    texts, _, log = loops.user_level("me", base, start, CONV, list(base), improved=True)
+    assert strict_log["too_long"] > 0
+    assert log["partial_rewrites"] >= 1 and "nurse" not in texts["a#0"]
+    assert texts["a#0"].startswith("filler ") and texts["a#0"].rstrip().endswith("more")
+    assert log["stop_reason"] == "safe"
+
+
+def test_improved_retries_gently(tmp_path):
+    loops, _ = _loops(tmp_path, _Fake(break_targeted=True))
+    start = {k: loops.attack(v) for k, v in BASE.items()}
+    texts, _, log = loops.user_level("me", BASE, start, CONV, list(BASE), improved=True)
+    assert log["gentle_kept"] >= 1 and "BROKEN" not in "".join(texts.values())

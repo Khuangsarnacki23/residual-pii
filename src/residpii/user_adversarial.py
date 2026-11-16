@@ -18,7 +18,9 @@ This loop works on the whole user instead:
   5. Stop when the class is at least k, no attribute is left to try, or after max_rounds.
 
 The per-message loop (Kai's design, starting from the same layer-2 text) runs on the same users as
-the baseline. Both are scored by a held-out attacker (a different, stronger model) that reads the
+the baseline. `user_level_improved` is the strict loop with a stronger rewrite step: a rejected rewrite
+gets one gentler retry, a message too long to rewrite whole has only the passage around the cue
+rewritten, and it allows more rounds and tries per attribute. All are scored by a held-out attacker (a different, stronger model) that reads the
 user's whole history at once, so cross-message inference is caught too.
 
 Hosted and opt-in: user turns go to Anthropic. Texts, inferences and model outputs stay in
@@ -44,7 +46,8 @@ from . import llm_detect, profiles
 from .config import Paths
 from .sanitize import ATTACK, GENERALIZE, REWRITE_EXTRA, JUDGE, _ask, _schemas, _turn, redact, stage_spans
 
-METHODS = ("start", "per_message", "user_level", "user_level_history", "user_level_strict")
+METHODS = ("start", "per_message", "user_level", "user_level_history", "user_level_strict", "user_level_improved")
+LOOP_METHODS = METHODS[2:]
 
 TARGETED = """Someone who reads everything this person has written can narrow them down using one \
 attribute they reveal. Rewrite the message so that attribute can no longer be inferred from it. \
@@ -136,6 +139,28 @@ def choose_target(profile: dict, ref: Reference, user: str, blocked: set) -> str
         if k > best:
             best, arg = k, d
     return arg
+
+
+def cue_window(text: str, cues: list[dict], size: int) -> tuple[int, int] | None:
+    """(start, end) of a passage of at most `size` characters around the first cue found in the text,
+    trimmed inward to whole lines where the cue allows; None if no cue string (3+ characters) appears."""
+    low = text.casefold()
+    hits = [(low.find(c["cue"].strip().casefold()), len(c["cue"].strip())) for c in cues
+            if len(c.get("cue", "").strip()) >= 3]
+    hits = [h for h in hits if h[0] >= 0]
+    if not hits:
+        return None
+    p, n = min(hits)
+    start = max(0, p - size // 2)
+    end = min(len(text), start + size)
+    start = max(0, end - size)
+    nl = text.find("\n", start, p)
+    if start > 0 and nl >= 0:
+        start = nl + 1
+    nl = text.rfind("\n", p + n, end)
+    if end < len(text) and nl >= 0:
+        end = nl
+    return start, end
 
 
 def changed_share(a: str, b: str) -> float:
@@ -244,15 +269,21 @@ class Loops:
 
     def user_level(self, user: str, base: dict[str, str], start_inf: dict[str, list],
                    conv_of: dict[str, str], order: list[str] | None = None,
-                   history: bool = False, strict: bool = False) -> tuple[dict, dict, dict]:
+                   history: bool = False, strict: bool = False, improved: bool = False) -> tuple[dict, dict, dict]:
         """history=False: risk from per-message attacks added up over conversations (Stage 2's measure).
         history=True: each round the loop attacker reads the user's whole history at once, so cues that
         only add up across messages count; a rewrite that fails the utility gate gets one gentler retry.
         strict=True: the core loop with a stricter stop: the user counts as safe only when both
         attackers (per-message, added up, and whole history) put them in a class of at least
-        adversarial.strict_k; each round targets whichever profile is riskier. No gentle retry."""
+        adversarial.strict_k; each round targets whichever profile is riskier. No gentle retry.
+        improved=True: the strict loop with a stronger rewrite step (gentle retry, passage rewrites of
+        long messages, adversarial.improved_max_rounds and improved_max_tries_per_attribute)."""
         a = self.a
+        strict = strict or improved
         K = float(a["strict_k"] if strict else a["k"])
+        max_rounds = int(a["improved_max_rounds"] if improved else a["max_rounds"])
+        max_tries = int(a["improved_max_tries_per_attribute"] if improved else a["max_tries_per_attribute"])
+        prompts = (TARGETED, GENTLE) if (history or improved) else (TARGETED,)
         texts, inf = dict(base), dict(start_inf)
         order = order or sorted(base)
         hist: list[dict] = []
@@ -271,9 +302,9 @@ class Loops:
         prof = profile()
         k, _ = self.ref.min_k(prof, user)
         log = {"k_by_round": [k], "rewrites": 0, "rejected_utility": 0, "rejected_edit": 0,
-               "too_long": 0, "targets": 0, "gentle_kept": 0}
+               "too_long": 0, "targets": 0, "gentle_kept": 0, "partial_rewrites": 0}
         blocked, tries, stop = set(), {}, "max_rounds"
-        for _ in range(int(a["max_rounds"])):
+        for _ in range(max_rounds):
             if k >= K:
                 break
             dim = choose_target(prof, self.ref, user, blocked)
@@ -282,7 +313,7 @@ class Loops:
                 break
             log["targets"] += 1
             tries[dim] = tries.get(dim, 0) + 1
-            if tries[dim] >= int(a["max_tries_per_attribute"]):
+            if tries[dim] >= max_tries:
                 blocked.add(dim)
             val = prof[dim]
             hist_cues = [x for x in hist if x.get("confidence", 0) >= self.conf
@@ -294,22 +325,29 @@ class Loops:
                 cues += [x for x in hist_cues if len(x["cue"].strip()) >= 3 and x["cue"].strip().casefold() in low]
                 if not cues:
                     continue
+                s0, s1, whole = 0, len(texts[key]), True
                 if len(texts[key]) > int(a["max_rewrite_chars"]):
-                    log["too_long"] += 1
-                    continue
-                kept = None
-                for prompt in ((TARGETED, GENTLE) if history else (TARGETED,)):
-                    new = self.rewrite(texts[key], prompt, cues)
-                    if new is None or new == texts[key]:
+                    span = cue_window(texts[key], cues, int(a["passage_chars"])) if improved else None
+                    if span is None:
+                        log["too_long"] += 1
                         continue
-                    if changed_share(texts[key], new) > float(a["max_edit_share"]):
+                    (s0, s1), whole = span, False
+                part = texts[key][s0:s1]
+                kept = None
+                for prompt in prompts:
+                    new_part = self.rewrite(part, prompt, cues)
+                    if new_part is None or new_part == part:
+                        continue
+                    if changed_share(part, new_part) > float(a["max_edit_share"]):
                         log["rejected_edit"] += 1
                         continue
-                    if self.judge(base[key], new) < int(a["min_utility"]):
+                    # A whole message is judged against the original; a passage against itself.
+                    if (self.judge(base[key], new_part) if whole else self.judge(part, new_part)) < int(a["min_utility"]):
                         log["rejected_utility"] += 1
                         continue
-                    kept = new
+                    kept = texts[key][:s0] + new_part + texts[key][s1:]
                     log["gentle_kept"] += prompt is GENTLE
+                    log["partial_rewrites"] += not whole
                     break
                 if kept is None:
                     continue
@@ -458,12 +496,14 @@ def run(cfg: dict, ds: str, n_risk: int, n_control: int, max_cost: float, worker
         ul_texts, ul_inf, ul_log = loops.user_level(u.user, base, start_inf, conv_of)
         uh_texts, uh_inf, uh_log = loops.user_level(u.user, base, start_inf, conv_of, order, history=True)
         us_texts, us_inf, us_log = loops.user_level(u.user, base, start_inf, conv_of, order, strict=True)
+        ui_texts, ui_inf, ui_log = loops.user_level(u.user, base, start_inf, conv_of, order, improved=True)
         rec = {"user": u.user, "group": u.group, "stage2_k": u.k, "n_turns": len(base),
                "user_n_conversations": int(u.user_n_conversations), "methods": {}}
         for m, texts, inf, log in (("start", base, start_inf, {}), ("per_message", pm_texts, pm_inf, pm_log),
                                    ("user_level", ul_texts, ul_inf, ul_log),
                                    ("user_level_history", uh_texts, uh_inf, uh_log),
-                                   ("user_level_strict", us_texts, us_inf, us_log)):
+                                   ("user_level_strict", us_texts, us_inf, us_log),
+                                   ("user_level_improved", ui_texts, ui_inf, ui_log)):
             prof = build_profile(inf, conv_of, loops.coarsener, loops.conf)
             held = loops.held_out(texts, order)
             changed = [k for k in base if texts[k] != base[k]]
@@ -531,12 +571,14 @@ def report(cfg: dict, ds: str) -> pd.DataFrame:
                    "rejected_utility": sum(x.get("rejected_utility", 0) for x in ms),
                    "rejected_edit": sum(x.get("rejected_edit", 0) for x in ms),
                    "gentle_kept": sum(x.get("gentle_kept", 0) for x in ms),
+                   "too_long": sum(x.get("too_long", 0) for x in ms),
+                   "partial_rewrites": sum(x.get("partial_rewrites", 0) for x in ms),
                    "suppressed": len(rs) < min_cell}
             if row["suppressed"]:
                 row = {k: (v if k in ("dataset", "group", "method", "k", "suppressed") else np.nan) for k, v in row.items()}
             rows.append(row)
         if group == "all":
-            for m in ("user_level", "user_level_history", "user_level_strict"):
+            for m in LOOP_METHODS:
                 for reason in ("safe", "no_target", "max_rounds"):
                     n = sum(r["methods"].get(m, {}).get("stop_reason") == reason for r in rs)
                     rows.append({"dataset": ds, "group": group, "method": m, "stop_reason": reason,
