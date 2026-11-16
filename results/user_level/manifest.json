@@ -1,0 +1,79 @@
+{
+  "pipeline_version": "0.1.0",
+  "run_name": "user_level",
+  "config_hash": "7b9fbdfbf01bab7b",
+  "datasets": {
+    "wildchat": {
+      "repo": "allenai/WildChat-1M",
+      "revision": "7d6490e462285cf85d91eabea0f9a954fbddcd1f",
+      "sampling": {
+        "mode": "user_level",
+        "eligible_conversations": 474405,
+        "users_with_proxy": 98094,
+        "min_conversations": 3,
+        "max_conversations_per_user": 50,
+        "eligible_users": 25325,
+        "sampling_frame": 385850,
+        "sampled_users": 2000,
+        "sample_size": 19517,
+        "users_over_cap": 940,
+        "sampled_users_over_cap": 83,
+        "user_activity": [
+          {
+            "activity_bucket": "1",
+            "n_users": 56983,
+            "share_users": 0.5809019919668889,
+            "meets_min_conversations": false
+          },
+          {
+            "activity_bucket": "2",
+            "n_users": 15786,
+            "share_users": 0.16092727383937855,
+            "meets_min_conversations": false
+          },
+          {
+            "activity_bucket": "3",
+            "n_users": 7099,
+            "share_users": 0.07236936000163109,
+            "meets_min_conversations": true
+          },
+          {
+            "activity_bucket": "4-5",
+            "n_users": 6508,
+            "share_users": 0.06634452667849206,
+            "meets_min_conversations": true
+          },
+          {
+            "activity_bucket": "6-10",
+            "n_users": 5745,
+            "share_users": 0.05856627316655453,
+            "meets_min_conversations": true
+          },
+          {
+            "activity_bucket": "11-25",
+            "n_users": 3792,
+            "share_users": 0.038656798580952965,
+            "meets_min_conversations": true
+          },
+          {
+            "activity_bucket": "26-50",
+            "n_users": 1241,
+            "share_users": 0.012651130548249638,
+            "meets_min_conversations": true
+          },
+          {
+            "activity_bucket": ">50",
+            "n_users": 940,
+            "share_users": 0.009582645217852265,
+            "meets_min_conversations": true
+          }
+        ]
+      }
+    }
+  },
+  "figures": [
+    "prevalence_by_category",
+    "prevalence_rare_direct",
+    "direct_by_task"
+  ]
+}

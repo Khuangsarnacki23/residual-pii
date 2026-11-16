@@ -11,8 +11,9 @@ chat-log datasets after each dataset's own de-identification. All outputs are ag
 
 **Status:** Stage 1 is done for WildChat: a 300-item gold set labelled by two annotators and
 adjudicated, with Presidio and the secrets rules scored against it. Results and the summary line are
-in [docs/stage1_results.md](docs/stage1_results.md). The LLM detector is built but not yet scored
-(opt-in, hosted). LMSYS and Arena have no label sets. See [docs/limitations.md](docs/limitations.md).
+in [docs/stage1_results.md](docs/stage1_results.md), with the LLM detector scored alongside. Stage 2
+(per-user identifiability, 2,000 WildChat users) is in [docs/stage2_results.md](docs/stage2_results.md).
+LMSYS and Arena have no label sets. See [docs/limitations.md](docs/limitations.md).
 
 ## Setup
 
