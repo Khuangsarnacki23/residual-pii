@@ -139,16 +139,24 @@ LLM-only categories, private, as WildChat / LMSYS / Arena:
 
 **Layered sanitizer on the gold set** (gold = adjudicated; layers are cumulative; `sanitizer_leakage.csv`, `sanitizer_overredaction.csv`)
 
-| Stage | Direct removed (of 41) | Quasi removed (of 53) | Clean turns changed |
-|---|---|---|---|
-| Presidio re-run | 74% | 3% | 19.7% |
-| Layer 1: patterns | 5% | 0% | 0.1% |
-| Layers 1–2: + LLM identifiers | 62% | 0% | 0.1% |
-| No LLM: rule identifiers | 29% | 1% | 3.2% |
-| No LLM: + rule generalise | 48% | 12% | 3.4% |
+| Stage | Direct removed (of 41) | Quasi removed (of 53) | Clean turns changed | Rated worse (<4/5) | Attacker's original inferences still made |
+|---|---|---|---|---|---|
+| Presidio re-run | 74% | 3% | 19.7% | 7.7% | 50% |
+| Layer 1: patterns | 5% | 0% | 0.1% | 0.0% | 55% |
+| Layers 1–2: + LLM identifiers | 62% | 0% | 0.1% | 0.0% | 55% |
+| Layers 1–3: + LLM generalise | 84% | 12% | 9.9% | 0.3% | 46% |
+| Layers 1–4: + adversarial loop | 84% | 63% [39–83] | 14.4% | 3.2% | 5% |
+| No LLM: rule identifiers | 29% | 1% | 3.2% | 0.3% | 57% |
+| No LLM: + rule generalise | 48% | 12% | 3.4% | 1.3% | 31% |
 
-Layers 3–4 (LLM generalising and the adversarial loop) have not been run on the gold set yet. The
-estimate is up to about $22.
+- Sources: `sanitizer_exposure.csv` and `sanitizer_utility.csv` alongside the two tables above.
+- Layers 3–4 cost $4.93 for the 260 turns.
+- The held-out attacker is Sonnet 5.5, and it made 52 confident inferences on the original text.
+  With all four layers, turns with any confident inference fall from 10.5% to 5.8%.
+- Removal is an exact-string check, so paraphrases count as removed. Lean on the attacker column
+  for what stays inferable.
+- Headline: only the adversarial layer removes most quasi-identifiers. The full pipeline still
+  changes fewer clean turns and damages fewer requests than a Presidio re-run.
 
 **Hand review of 100 fresh turns** (gold = Kai's review judgments; `review_scores_fresh.csv`)
 
@@ -211,7 +219,6 @@ LaTeX table to drop in:
 
 ## Open items
 
-1. Run layers 3–4 on the gold set (up to about $22) to score the full layered pipeline.
-2. LMSYS/Arena label scores against the LLM annotator need a small change, so that `label score`
+1. LMSYS/Arena label scores against the LLM annotator need a small change, so that `label score`
    can use a different gold set per dataset without overwriting WildChat's tables. Do this only if
    the comparison section needs precision and recall there.

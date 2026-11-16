@@ -11,7 +11,7 @@ A synthesis of Stages 1–3 for the final presentation. Every number comes from 
 1. **What is left.** WildChat's own scrubbing leaves private information in about 1 in 13 user turns. Most of it is quasi-identifiers such as occupation, education and location, not names or emails.
 2. **Can tools find it.** No. Presidio's flags are 96% false alarms, and it finds 31% of what is left. An LLM is 16 times more precise but finds no more, and every tool misses occupation and education.
 3. **Across conversations.** Linking a user's conversations, as the released hashed IP allows, is where the risk builds. 6% of users are unique on what they reveal, rising to 15% of heavy users. For 2% of users, their conversations can be tied back together from content alone.
-4. **Can a sanitizer fix it.** Not by redacting identifiers. Kai's identifier layers remove up to 62% of private direct identifiers but none of the quasi-identifiers. A sanitizer that works on the whole user rewrites about half as many messages as the per-message loop (Staab et al.), and its rewrites stay usable. In a 50-user pilot it protected fewer users, but the gap is not significant. The limit is now the rewrite step, not the idea.
+4. **Can a sanitizer fix it.** Not by redacting identifiers, which removes none of the quasi-identifiers. Kai's full four-layer sanitizer removes 84% of private direct identifiers and 63% of quasi-identifiers on the gold set. It changes fewer clean turns than a Presidio re-run and damages fewer requests. A sanitizer that works on the whole user rewrites about half as many messages as the per-message loop (Staab et al.), and its rewrites stay usable. In a 50-user pilot it protected fewer users, but the gap is not significant. The limit is now the rewrite step, not the idea.
 
 ## Research questions and answers
 
@@ -20,7 +20,7 @@ A synthesis of Stages 1–3 for the final presentation. Every number comes from 
 | RQ1 | How much personal information remains after WildChat's scrubbing, by type? | 7.6% of turns hold a private quasi-identifier and 1.5% a private direct identifier. Occupation (4.5%) is the largest category. | Medium: 260 gold turns, wide CIs |
 | RQ2 | How accurate is each detection layer, and what does each miss? | Presidio: 3.8% precise, 31% recall. LLM: 60% precise, 29% recall. Together they reach 57% recall at 8.8% precision. Occupation and education are 0–14% everywhere. | Overall figures are robust; per-category figures are indicative |
 | RQ3 | How much more does a user expose across conversations than in one? | One attribute singles out 2% of users and two attributes 5.9%. Uniqueness rises from 3% of users with 3 conversations to 15% of those with over 50. 2.1% can be re-linked (chance: 0.05%). | Medium: extractor recall is 29% |
-| RQ4 | Can a sanitizer leave less behind, and at what cost? How much stays inferable? | On the gold set, layers 1–2 remove 62% of private direct identifiers and 0% of quasi-identifiers, changing 0.1% of clean turns. Rule-based generalising removes 12% of quasi-identifiers. After direct identifiers are removed, a held-out attacker still puts 23 of 50 pilot users at risk. The per-message loop leaves 13, and the best user-level loop leaves 17 while changing 42% fewer messages. | Gold-set layers: medium. Loops: pilot only (p = 0.73) |
+| RQ4 | Can a sanitizer leave less behind, and at what cost? How much stays inferable? | On the gold set, layers 1–2 remove 62% of private direct identifiers and 0% of quasi-identifiers. All four layers remove 84% and 63%, change 14% of clean turns and rate 97% of turns still usable; a held-out attacker's confident inferences fall from 10.5% of turns to 5.8%. After direct identifiers are removed, a held-out attacker still puts 23 of 50 pilot users at risk. The per-message loop leaves 13, and the best user-level loop leaves 17 while changing 42% fewer messages. | Gold-set layers: medium. Loops: pilot only (p = 0.73) |
 
 ---
 
@@ -113,8 +113,9 @@ Kai's sanitizer (`residpii sanitize`) applies cumulative layers:
 4. the per-message adversarial loop.
 
 It also has an alternative without an LLM, built from spaCy and lookup tables. A private gold span
-counts as removed if its value no longer appears in the sanitized text. Layers 3–4 need API calls
-and have not been run on the gold set.
+counts as removed if its exact value no longer appears in the sanitized text. A held-out attacker
+(Claude Sonnet 5.5) also tries to infer attributes from each sanitized turn, and a judge (Haiku)
+rates whether the request can still be answered. Layers 3–4 cost $4.93 for the 260 turns.
 
 ![Layered sanitizer on the gold set](../results/presentation/figures/rq4_layered_sanitizer.png)
 
@@ -124,11 +125,23 @@ and have not been run on the gold set.
 | Presidio re-run | 74% | 3% | 19.7% | 97% of 421 |
 | Layer 1: patterns | 5% | 0% | 0.1% | 56% of 27 |
 | Layers 1–2: + LLM identifiers | 62% | 0% | 0.1% | 23% of 39 |
+| Layers 1–3: + LLM generalise | 84% | 12% | 9.9% | |
+| Layers 1–4: + adversarial loop | 84% | **63%** | 14.4% | |
 | No LLM: 1 + rule identifiers | 29% | 1% | 3.2% | 90% of 93 |
 | No LLM: + rule generalise | 48% | 12% | 3.4% | 80% of 120 |
 
-Source: `results/default/tables/sanitizer_leakage.csv` and `sanitizer_overredaction.csv` (gold = adjudicated), with weighted 95% CIs. The direct
-removal rates have wide intervals (layers 1–2: 32–95%).
+| Stage | Turns rated worse (judge <4/5) | Turns with a confident inference (held-out attacker) | Original inferences still made |
+|---|---|---|---|
+| WildChat as released | | 10.5% | 100% of 52 |
+| Presidio re-run | 7.7% | 10.5% | 50% |
+| Layers 1–2 | 0.0% | 11.9% | 55% |
+| Layers 1–3 | 0.3% | 11.9% | 46% |
+| Layers 1–4 | 3.2% | **5.8%** | **5%** |
+| No LLM: + rule generalise | 1.3% | 11.4% | 31% |
+
+Sources: `results/default/tables/sanitizer_leakage.csv`, `sanitizer_overredaction.csv`,
+`sanitizer_exposure.csv` and `sanitizer_utility.csv` (gold = adjudicated), with weighted 95% CIs.
+The intervals are wide (layers 1–4, quasi removed: 39–83%).
 
 **What it means.**
 - **The LLM layer is the precise way to remove identifiers.** Layers 1–2 remove nearly as many
@@ -136,8 +149,19 @@ removal rates have wide intervals (layers 1–2: 32–95%).
   where Presidio changes 20%, and 77% of their redactions hit real private PII, against 3% for
   Presidio.
 - **No identifier layer touches quasi-identifiers.** 100% of private occupation, education,
-  location and similar spans survive layers 1–2. The rules' generalising step is the only one
-  that removes any (12%). This is the gap that layers 3–4 and the user-level loop exist to close.
+  location and similar spans survive layers 1–2.
+- **Generalising alone barely helps.** LLM generalising (layer 3) removes only 12% of
+  quasi-identifiers, the same as the rule-based version, while changing 10% of clean turns.
+- **The adversarial loop does the work.** Layer 4 removes 63% of quasi-identifiers. The held-out
+  attacker still makes only 5% of the inferences it could make from the original text, and turns
+  with any confident inference halve (10.5% to 5.8%).
+- **The full pipeline costs less than Presidio.** Layers 1–4 change fewer clean turns (14% against
+  20%) and damage fewer requests (3.2% against 7.7% rated below 4), while removing more on both
+  tiers.
+- **Caveats.** Removal is an exact-string check, so a paraphrase that keeps the meaning counts as
+  removed. The attacker result is the better guide to what stays inferable. The sample is small
+  (53 quasi-identifier spans in 24 turns). The judge is a cheap model and rates nearly everything
+  usable.
 
 ### Protecting users, not messages
 
@@ -211,7 +235,7 @@ sees.
   31% to 30%, all well inside the confidence intervals.
 - Stage 2 includes turns that repeat a shared prompt (13% of its turns, mostly one user reusing
   their own prompt). Dropping them leaves uniqueness at 5.9%.
-- All models ran at low or medium effort and with cheap tiers. The total API spend was about $14.
+- All models ran at low or medium effort and with cheap tiers. The total API spend was about $19.
 
 ## Next steps
 
@@ -219,6 +243,4 @@ sees.
    only the relevant part of long messages (about $1–2).
 2. Use a stronger attacker inside the loop (Sonnet, with Opus held out), at about $15–20.
 3. Re-run the chosen loop on 200 or more users so the differences can be tested.
-4. Run Kai's layers 3–4 (LLM generalise and the adversarial loop) on the gold set (estimated at up to
-   $22), so the whole pipeline is scored against the same adjudicated labels.
-5. Build a larger, two-annotator gold set for attributes.
+4. Build a larger, two-annotator gold set for attributes.

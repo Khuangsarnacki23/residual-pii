@@ -317,9 +317,11 @@ def fig_layered_sanitizer():
     lk = pd.read_csv(S1 / "sanitizer_leakage.csv").query("metric == 'span_leak_rate'")
     ov = pd.read_csv(S1 / "sanitizer_overredaction.csv").query("metric == 'clean_turns_changed'")
     stages = [("Presidio re-run", "presidio"), ("Layer 1: patterns", "patterns"),
-              ("Layers 1-2: + LLM identifiers", "llm_identifiers"),
+              ("Layers 1-2: + LLM identifiers", "llm_identifiers"), ("Layers 1-3: + LLM generalise", "generalize"),
+              ("Layers 1-4: + adversarial loop", "adversarial"),
               ("No-LLM: 1 + rule identifiers", "rules_identifiers"), ("No-LLM: + rule generalise", "rules_generalize")]
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(14, 5.4), gridspec_kw={"width_ratios": [1.6, 1]})
+    ut = pd.read_csv(S1 / "sanitizer_utility.csv").query("metric == 'share_score_4_plus'").set_index("stage")
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(16, 6.6), gridspec_kw={"width_ratios": [1.6, 0.8, 0.8]})
     h = 0.36
     for j, (lab, tier, col) in enumerate([("Direct identifiers", "direct", BLUE), ("Quasi-identifiers", "quasi", ORANGE)]):
         for i, (_, s) in enumerate(stages):
@@ -345,12 +347,22 @@ def fig_layered_sanitizer():
     _pct(a2)
     a2.set_xlim(0, 0.25)
     a2.grid(axis="y", visible=False)
-    a2.set_title("Turns with no private PII that were changed anyway", fontsize=13)
-    fig.suptitle("Redacting identifiers leaves almost every quasi-identifier in place",
+    a2.set_title("Clean turns changed anyway", fontsize=13)
+    for i, (_, s_) in enumerate(stages):
+        v = 1 - ut.loc[s_].value
+        a3.barh(i, max(v, 0.001), height=0.6, color=INK2)
+        a3.text(v + 0.002, i, f"{v:.1%}", va="center", fontsize=10.5)
+    a3.set_yticks(range(len(stages)), [""] * len(stages))
+    a3.invert_yaxis()
+    _pct(a3)
+    a3.set_xlim(0, 0.12)
+    a3.grid(axis="y", visible=False)
+    a3.set_title("Turns the judge rates worse (<4/5)", fontsize=13)
+    fig.suptitle("Only the adversarial layer removes most quasi-identifiers, and it costs less than Presidio",
                  x=0.01, ha="left", fontsize=16, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.86))
-    _note(fig, "Kai's offline layers on the 260-turn adjudicated gold set (weighted, 95% CI). A span counts as removed "
-               "if its value no longer appears. Layers 3-4 (LLM generalise, adversarial) not yet run.")
+    _note(fig, "Kai's layered sanitizer on the 260-turn adjudicated gold set (weighted, 95% CI). A span counts as removed "
+               "if its exact value no longer appears, so rewrites that paraphrase count as removed.")
     _save(fig, "rq4_layered_sanitizer")
 
 

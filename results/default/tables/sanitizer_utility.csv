@@ -1,0 +1,15 @@
+dataset,stage,metric,value,ci_low,ci_high,n
+wildchat,presidio,mean_score,4.70952,4.64946,4.7699,260
+wildchat,presidio,share_score_4_plus,0.922504,0.900246,0.943782,260
+wildchat,patterns,mean_score,4.99862,4.99774,4.99931,260
+wildchat,patterns,share_score_4_plus,0.999606,0.999212,0.999902,260
+wildchat,llm_identifiers,mean_score,4.99843,4.99754,4.99911,260
+wildchat,llm_identifiers,share_score_4_plus,0.999507,0.999114,0.999803,260
+wildchat,generalize,mean_score,4.98434,4.96592,4.99656,260
+wildchat,generalize,share_score_4_plus,0.996945,0.991824,0.999704,260
+wildchat,adversarial,mean_score,4.88323,4.82571,4.93304,260
+wildchat,adversarial,share_score_4_plus,0.96832,0.943299,0.988274,260
+wildchat,rules_identifiers,mean_score,4.97979,4.96538,4.99053,260
+wildchat,rules_identifiers,share_score_4_plus,0.997431,0.993175,0.999803,260
+wildchat,rules_generalize,mean_score,4.95811,4.93515,4.97696,260
+wildchat,rules_generalize,share_score_4_plus,0.986982,0.976628,0.995268,260

@@ -14,6 +14,12 @@ wildchat,llm_identifiers,nonpii_words_kept,0.999901,0.999806,0.999961,27207
 wildchat,llm_identifiers,clean_turns_changed,0.001395,0.000967697,0.00184117,229
 wildchat,llm_identifiers,turns_changed,0.0122213,0.0039509,0.0205082,260
 wildchat,llm_identifiers,false_redaction_share,0.23232,0.0823488,0.440188,39
+wildchat,generalize,nonpii_words_kept,0.997537,0.994357,0.999736,27207
+wildchat,generalize,clean_turns_changed,0.0991381,0.0593219,0.141947,229
+wildchat,generalize,turns_changed,0.125318,0.0860961,0.171129,260
+wildchat,adversarial,nonpii_words_kept,0.967487,0.953188,0.982179,27207
+wildchat,adversarial,clean_turns_changed,0.14366,0.0958127,0.190371,229
+wildchat,adversarial,turns_changed,0.192861,0.143504,0.24372,260
 wildchat,rules_identifiers,nonpii_words_kept,0.997084,0.995003,0.998631,27207
 wildchat,rules_identifiers,clean_turns_changed,0.0315762,0.0166495,0.0480646,229
 wildchat,rules_identifiers,turns_changed,0.03781,0.0229289,0.0547176,260
