@@ -175,7 +175,7 @@ def fig_recall_by_category():
             if v == 0:
                 ax.text(x, 0.02, "0", ha="center", fontsize=9, color=INK2)
     n = pr[pr.detector == "presidio"].set_index("category").n
-    ax.set_xticks(range(len(cats)), [f"{lab}\n(n = {int(n.get(c, 0))})" for lab, c in cats])
+    ax.set_xticks(range(len(cats)), [lab for lab, c in cats])
     _pct(ax, "y")
     ax.set_ylim(0, 1.05)
     ax.grid(axis="x", visible=False)
