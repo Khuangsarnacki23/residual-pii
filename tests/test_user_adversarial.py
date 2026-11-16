@@ -64,8 +64,9 @@ class _Fake:
     """Attacker: 'nurse' -> occupation, 'Leeds' -> UK. Rewrites replace the cue words.
     The judge rates a rewrite 2 if it contains 'BROKEN', else 4."""
 
-    def __init__(self, break_rewrites=False, break_targeted=False):
+    def __init__(self, break_rewrites=False, break_targeted=False, describe=False):
         self.calls, self.break_rewrites, self.break_targeted = [], break_rewrites, break_targeted
+        self.describe = describe   # cues describe the evidence instead of quoting it, as the real model does
 
     def create(self, **kw):
         self.calls.append(kw)
@@ -78,7 +79,8 @@ class _Fake:
             body = {"text": new + (" BROKEN" if broken else "")}
         elif "inferences" in props:
             joined = " ".join(turns)
-            body = {"inferences": ([{"attribute": "occupation", "value": "nurse", "confidence": 5, "cue": "nurse"}]
+            body = {"inferences": ([{"attribute": "occupation", "value": "nurse", "confidence": 5,
+                                     "cue": "they describe their shifts on a hospital ward" if self.describe else "nurse"}]
                                    if "nurse" in joined else [])
                     + ([{"attribute": "location_country", "value": "UK", "confidence": 5, "cue": "Leeds"}]
                        if "Leeds" in joined else [])}
@@ -195,3 +197,26 @@ def test_improved_retries_gently(tmp_path):
     start = {k: loops.attack(v) for k, v in BASE.items()}
     texts, _, log = loops.user_level("me", BASE, start, CONV, list(BASE), improved=True)
     assert log["gentle_kept"] >= 1 and "BROKEN" not in "".join(texts.values())
+
+
+def test_split_passages_covers_the_text():
+    text = ("line of text\n" * 40)
+    spans = ua.split_passages(text, 100)
+    assert spans[0][0] == 0 and spans[-1][1] == len(text)
+    assert all(b - a <= 100 for a, b in spans) and all(spans[i][1] == spans[i + 1][0] for i in range(len(spans) - 1))
+
+
+def test_passages_find_the_detail_when_cues_are_descriptions(tmp_path):
+    loops, _ = _loops(tmp_path, _Fake(describe=True))
+    loops.a = {**loops.a, "max_rewrite_chars": 60, "passage_chars": 40, "strict_k": 20}
+    long_msg = "filler " * 20 + "\nI am a nurse and need a rota\n" + "more " * 20
+    base = {"a#0": long_msg, "b#0": BASE["b#0"], "c#0": BASE["c#0"]}
+    start = {k: loops.attack(v) for k, v in base.items()}
+    # A descriptive cue never appears in the text: the cue-window version cannot place it ...
+    _, _, imp = loops.user_level("me", base, start, CONV, list(base), improved=True)
+    assert imp["partial_rewrites"] == 0 and imp["too_long"] > 0
+    # ... attacking passage by passage finds it and rewrites only that passage.
+    texts, _, log = loops.user_level("me", base, start, CONV, list(base), passages=True)
+    assert log["passages_attacked"] > 0 and log["partial_rewrites"] >= 1
+    assert "nurse" not in texts["a#0"] and texts["a#0"].startswith("filler ") and texts["a#0"].rstrip().endswith("more")
+    assert log["stop_reason"] == "safe"

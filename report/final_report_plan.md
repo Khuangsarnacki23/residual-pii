@@ -173,12 +173,12 @@ LLM-only categories, private, as WildChat / LMSYS / Arena:
 |---|---|---|---|
 | Per-message (Staab et al.) | 13 | 14.4% | 76% |
 | User-level, strict stop | 17 | 8.3% | 100% |
-| User-level, improved rewrites | 17 | 9.5% | 100% |
+| User-level, improved rewrites + passages | 17 | 10.2% | 100% |
 
 The difference in users protected is not significant (p = 0.73). The user-level loop edits about
-half as much, and the rewrite step is now the bottleneck. A stronger rewrite step (gentle retries,
-more rounds) did not change protection (17 still at risk); its long-message fix never fired because
-the attacker's cues are descriptions, not quotes.
+half as much. A stronger rewrite step (gentle retries, more rounds, long messages rewritten passage
+by passage) did not change protection (17 still at risk): for most remaining users every rewrite that
+hid the identifying detail broke the request, because the request needs that detail.
 
 LaTeX table to drop in:
 

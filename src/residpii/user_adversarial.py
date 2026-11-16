@@ -46,7 +46,8 @@ from . import llm_detect, profiles
 from .config import Paths
 from .sanitize import ATTACK, GENERALIZE, REWRITE_EXTRA, JUDGE, _ask, _schemas, _turn, redact, stage_spans
 
-METHODS = ("start", "per_message", "user_level", "user_level_history", "user_level_strict", "user_level_improved")
+METHODS = ("start", "per_message", "user_level", "user_level_history", "user_level_strict", "user_level_improved",
+           "user_level_passages")
 LOOP_METHODS = METHODS[2:]
 
 TARGETED = """Someone who reads everything this person has written can narrow them down using one \
@@ -163,6 +164,21 @@ def cue_window(text: str, cues: list[dict], size: int) -> tuple[int, int] | None
     return start, end
 
 
+def split_passages(text: str, size: int) -> list[tuple[int, int]]:
+    """Consecutive (start, end) passages of at most `size` characters, cut at a line break when one
+    falls in the last third of the window."""
+    out, start = [], 0
+    while start < len(text):
+        end = min(len(text), start + size)
+        if end < len(text):
+            nl = text.rfind("\n", start + (2 * size) // 3, end)
+            if nl > start:
+                end = nl + 1
+        out.append((start, end))
+        start = end
+    return out
+
+
 def changed_share(a: str, b: str) -> float:
     """Share of the original's characters that the rewrite did not keep in place."""
     if not a:
@@ -269,7 +285,8 @@ class Loops:
 
     def user_level(self, user: str, base: dict[str, str], start_inf: dict[str, list],
                    conv_of: dict[str, str], order: list[str] | None = None,
-                   history: bool = False, strict: bool = False, improved: bool = False) -> tuple[dict, dict, dict]:
+                   history: bool = False, strict: bool = False, improved: bool = False,
+                   passages: bool = False) -> tuple[dict, dict, dict]:
         """history=False: risk from per-message attacks added up over conversations (Stage 2's measure).
         history=True: each round the loop attacker reads the user's whole history at once, so cues that
         only add up across messages count; a rewrite that fails the utility gate gets one gentler retry.
@@ -277,8 +294,12 @@ class Loops:
         attackers (per-message, added up, and whole history) put them in a class of at least
         adversarial.strict_k; each round targets whichever profile is riskier. No gentle retry.
         improved=True: the strict loop with a stronger rewrite step (gentle retry, passage rewrites of
-        long messages, adversarial.improved_max_rounds and improved_max_tries_per_attribute)."""
+        long messages, adversarial.improved_max_rounds and improved_max_tries_per_attribute).
+        passages=True: improved, and a long message is attacked passage by passage to find where the
+        target attribute is revealed (attacker cues are usually descriptions, not quotes), then only
+        those passages are rewritten."""
         a = self.a
+        improved = improved or passages
         strict = strict or improved
         K = float(a["strict_k"] if strict else a["k"])
         max_rounds = int(a["improved_max_rounds"] if improved else a["max_rounds"])
@@ -302,7 +323,7 @@ class Loops:
         prof = profile()
         k, _ = self.ref.min_k(prof, user)
         log = {"k_by_round": [k], "rewrites": 0, "rejected_utility": 0, "rejected_edit": 0,
-               "too_long": 0, "targets": 0, "gentle_kept": 0, "partial_rewrites": 0}
+               "too_long": 0, "targets": 0, "gentle_kept": 0, "partial_rewrites": 0, "passages_attacked": 0}
         blocked, tries, stop = set(), {}, "max_rounds"
         for _ in range(max_rounds):
             if k >= K:
@@ -325,30 +346,43 @@ class Loops:
                 cues += [x for x in hist_cues if len(x["cue"].strip()) >= 3 and x["cue"].strip().casefold() in low]
                 if not cues:
                     continue
-                s0, s1, whole = 0, len(texts[key]), True
+                # Where to rewrite: the whole message, or passages of a long one.
+                spans = [(0, len(texts[key]), cues)]
+                whole = True
                 if len(texts[key]) > int(a["max_rewrite_chars"]):
+                    spans, whole = [], False
                     span = cue_window(texts[key], cues, int(a["passage_chars"])) if improved else None
-                    if span is None:
+                    if span is not None:
+                        spans = [(span[0], span[1], cues)]
+                    elif passages:
+                        for p0, p1 in split_passages(texts[key], int(a["passage_chars"])):
+                            log["passages_attacked"] += 1
+                            pc = [x for x in self.attack(texts[key][p0:p1]) if x.get("confidence", 0) >= self.conf
+                                  and (dim, val) in coarse_votes([x], self.coarsener, self.conf)]
+                            if pc:
+                                spans.append((p0, p1, pc))
+                    if not spans:
                         log["too_long"] += 1
                         continue
-                    (s0, s1), whole = span, False
-                part = texts[key][s0:s1]
-                kept = None
-                for prompt in prompts:
-                    new_part = self.rewrite(part, prompt, cues)
-                    if new_part is None or new_part == part:
-                        continue
-                    if changed_share(part, new_part) > float(a["max_edit_share"]):
-                        log["rejected_edit"] += 1
-                        continue
-                    # A whole message is judged against the original; a passage against itself.
-                    if (self.judge(base[key], new_part) if whole else self.judge(part, new_part)) < int(a["min_utility"]):
-                        log["rejected_utility"] += 1
-                        continue
-                    kept = texts[key][:s0] + new_part + texts[key][s1:]
-                    log["gentle_kept"] += prompt is GENTLE
-                    log["partial_rewrites"] += not whole
-                    break
+                kept, cur = None, texts[key]
+                for s0, s1, sc in sorted(spans, reverse=True):   # back to front, so offsets stay valid
+                    part = cur[s0:s1]
+                    for prompt in prompts:
+                        new_part = self.rewrite(part, prompt, sc)
+                        if new_part is None or new_part == part:
+                            continue
+                        if changed_share(part, new_part) > float(a["max_edit_share"]):
+                            log["rejected_edit"] += 1
+                            continue
+                        # A whole message is judged against the original; a passage against itself.
+                        if (self.judge(base[key], new_part) if whole else self.judge(part, new_part)) < int(a["min_utility"]):
+                            log["rejected_utility"] += 1
+                            continue
+                        cur = cur[:s0] + new_part + cur[s1:]
+                        kept = cur
+                        log["gentle_kept"] += prompt is GENTLE
+                        log["partial_rewrites"] += not whole
+                        break
                 if kept is None:
                     continue
                 texts[key] = kept
@@ -497,13 +531,15 @@ def run(cfg: dict, ds: str, n_risk: int, n_control: int, max_cost: float, worker
         uh_texts, uh_inf, uh_log = loops.user_level(u.user, base, start_inf, conv_of, order, history=True)
         us_texts, us_inf, us_log = loops.user_level(u.user, base, start_inf, conv_of, order, strict=True)
         ui_texts, ui_inf, ui_log = loops.user_level(u.user, base, start_inf, conv_of, order, improved=True)
+        up_texts, up_inf, up_log = loops.user_level(u.user, base, start_inf, conv_of, order, passages=True)
         rec = {"user": u.user, "group": u.group, "stage2_k": u.k, "n_turns": len(base),
                "user_n_conversations": int(u.user_n_conversations), "methods": {}}
         for m, texts, inf, log in (("start", base, start_inf, {}), ("per_message", pm_texts, pm_inf, pm_log),
                                    ("user_level", ul_texts, ul_inf, ul_log),
                                    ("user_level_history", uh_texts, uh_inf, uh_log),
                                    ("user_level_strict", us_texts, us_inf, us_log),
-                                   ("user_level_improved", ui_texts, ui_inf, ui_log)):
+                                   ("user_level_improved", ui_texts, ui_inf, ui_log),
+                                   ("user_level_passages", up_texts, up_inf, up_log)):
             prof = build_profile(inf, conv_of, loops.coarsener, loops.conf)
             held = loops.held_out(texts, order)
             changed = [k for k in base if texts[k] != base[k]]
@@ -573,6 +609,7 @@ def report(cfg: dict, ds: str) -> pd.DataFrame:
                    "gentle_kept": sum(x.get("gentle_kept", 0) for x in ms),
                    "too_long": sum(x.get("too_long", 0) for x in ms),
                    "partial_rewrites": sum(x.get("partial_rewrites", 0) for x in ms),
+                   "passages_attacked": sum(x.get("passages_attacked", 0) for x in ms),
                    "suppressed": len(rs) < min_cell}
             if row["suppressed"]:
                 row = {k: (v if k in ("dataset", "group", "method", "k", "suppressed") else np.nan) for k, v in row.items()}

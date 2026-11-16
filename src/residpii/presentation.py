@@ -39,7 +39,7 @@ def apply_deck_style():
     METHODS = [("Per-message\n(Staab et al.)", "per_message", BLUE), ("User-level", "user_level", ORANGE),
                ("User-level,\nwhole history", "user_level_history", AQUA),
                ("User-level,\nstrict stop", "user_level_strict", VIOLET),
-               ("User-level,\nimproved rewrites", "user_level_improved", "#7A8594")]
+               ("User-level,\nimproved rewrites", "user_level_passages", "#7A8594")]
     plt.rcParams.update({"font.family": ["Arial", "Helvetica", "DejaVu Sans"], "font.size": 13,
                          "axes.labelcolor": INK2, "axes.edgecolor": GRID, "axes.facecolor": SURFACE,
                          "figure.facecolor": SURFACE, "xtick.color": INK2, "ytick.color": INK,
@@ -266,12 +266,12 @@ def fig_uniqueness_curve():
 # Users at risk before rewriting under the held-out attacker who are still at risk after
 # (of 23): from the pilot's per-user records, reported in docs/adversarial_pilot.md.
 STILL_AT_RISK = {"per_message": 13, "user_level": 18, "user_level_history": 20, "user_level_strict": 17,
-                 "user_level_improved": 17}
+                 "user_level_passages": 17}
 METHODS = [("Per-message\n(Staab et al.)", "per_message", BLUE),
            ("User-level", "user_level", ORANGE),
            ("User-level,\nwhole history", "user_level_history", AQUA),
            ("User-level,\nstrict stop", "user_level_strict", VIOLET),
-           ("User-level,\nimproved rewrites", "user_level_improved", GREEN)]
+           ("User-level,\nimproved rewrites", "user_level_passages", GREEN)]
 
 
 def _adv():
@@ -285,7 +285,7 @@ def fig_sanitizer_tradeoff():
     ax.scatter(0, 23, s=130, color=MUTED, edgecolor=SURFACE, linewidth=2, zorder=3)
     ax.annotate("Before rewriting\n23 at risk", (0, 23), xytext=(10, -4), textcoords="offset points", fontsize=11)
     offs = {"per_message": (-10, 10), "user_level": (-12, 4), "user_level_history": (10, 2), "user_level_strict": (10, -26),
-            "user_level_improved": (12, 6)}
+            "user_level_passages": (12, 6)}
     for lab, m, col in METHODS:
         x, y = a.loc[m].share_turns_changed, STILL_AT_RISK[m]
         ax.scatter(x, y, s=150, color=col, edgecolor=SURFACE, linewidth=2, zorder=3)

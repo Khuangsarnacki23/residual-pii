@@ -186,7 +186,7 @@ sees.
 | User-level | 18 | 126 (6.5%) | 12% | 4.6 | 100% |
 | User-level, whole history | 20 | **67 (3.5%)** | 10% | 4.6 | 100% |
 | User-level, strict stop | 17 | 161 (8.3%) | 12% | 4.6 | 100% |
-| User-level, improved rewrites | 17 | 183 (9.5%) | 13% | 4.5 | 100% |
+| User-level, improved rewrites + passages | 17 | 198 (10.2%) | 13% | 4.5 | 100% |
 
 ![Why the loop stops](../results/presentation/figures/rq4_stop_reasons.png)
 
@@ -239,14 +239,14 @@ sees.
   31% to 30%, all well inside the confidence intervals.
 - Stage 2 includes turns that repeat a shared prompt (13% of its turns, mostly one user reusing
   their own prompt). Dropping them leaves uniqueness at 5.9%.
-- All models ran at low or medium effort and with cheap tiers. The total API spend was about $21.
+- All models ran at low or medium effort and with cheap tiers. The total API spend was about $23.
 
 ## Next steps
 
-1. Locate the identifying passage in long messages by attacking them passage by passage. A first
-   attempt at a stronger rewrite step (gentle retries, more rounds) did not protect more users, and
-   its long-message fix never fired because the attacker describes its evidence rather than quoting
-   it (`docs/adversarial_pilot.md`).
+1. A stronger rewrite step (gentle retries, more rounds, rewriting long messages passage by passage)
+   did not protect more users: the remaining at-risk users reveal details their requests depend on,
+   and every rewrite that hid them was rejected as unusable (`docs/adversarial_pilot.md`). Next:
+   generalise such details instead of removing them.
 2. Use a stronger attacker inside the loop (Sonnet, with Opus held out), at about $15–20.
 3. Re-run the chosen loop on 200 or more users so the differences can be tested.
 4. Build a larger, two-annotator gold set for attributes.

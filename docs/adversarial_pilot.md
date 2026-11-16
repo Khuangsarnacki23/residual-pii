@@ -51,6 +51,7 @@ Held-out attacker, all 50 users (23 at risk before rewriting).
 | User-level, whole history | 20 | 42% | 30% | **67 (3.5%)** | 10% | 4.6 | 100% |
 | User-level, strict stop | 17 | 36% | 26% | 161 (8.3%) | 12% | 4.6 | 100% |
 | User-level, improved rewrites | 17 | 38% | 26% | 183 (9.5%) | 13% | 4.5 | 100% |
+| User-level, improved + passages | 17 | 38% | 26% | 198 (10.2%) | 13% | 4.5 | 100% |
 
 \* Mean share of a changed message's characters that the rewrite did not keep.
 
@@ -108,8 +109,29 @@ produced rewrites the utility check rejected, and more users ran out of attribut
 of rounds. The long-message change never fired. The attacker prompt asks for a cue as "a few words
 from the message or a short description of the evidence"; on the 57 long messages, all 45 confident
 cues were descriptions (median 111 characters), none appeared verbatim, so no passage could be
-located. Locating the passage needs a different method, such as attacking a long message passage by
-passage, or asking the attacker for an exact quote.
+located.
+
+**Passage by passage (`user_level_passages`).** The improved loop, but a long message is split into
+passages of about 4,000 characters and the loop attacker reads each one, so the passages that reveal
+the target attribute can be found without relying on the cue text. Same 50 users, about $1.80 more.
+
+| | Strict stop | Improved | Improved + passages |
+|---|---|---|---|
+| At-risk users still at risk (of 23) | 17 | 17 | 17 |
+| Users reaching the target | 25 | 27 | 28 |
+| Rewrites kept | 228 | 279 | 316 |
+| Rejected by the utility check | 56 | 139 | 146 |
+| Long-message passages rewritten | 0 | 0 | 53 (156 passages attacked) |
+| Cue out of reach (long message, not rewritten) | 29 | 48 | 11 |
+| Stopped: out of rounds / no attribute left | 13 / 12 | 4 / 19 | 5 / 17 |
+| Messages changed | 161 (8.3%) | 183 (9.5%) | 198 (10.2%) |
+
+Locating the passage works: long messages are no longer out of reach. Protection still does not move.
+Of the 17 users still at risk, 10 stopped because no attribute was left that the loop could change,
+after every rewrite of it was rejected as unusable. For these users the identifying details are part
+of what the request needs (a CV, a cover letter, a visa application), so they cannot be hidden
+without breaking it. The per-message loop protects more of them because it keeps rewrites the judge
+rates as damaging.
 
 ## Limitations
 
@@ -129,8 +151,9 @@ passage, or asking the attacker for an exact quote.
 
 ## Next
 
-- Find the identifying passage in long messages by attacking them passage by passage (the cue-text
-  approach above cannot work with descriptive cues).
+- Long messages are now handled (passage by passage). The remaining gap is requests whose identifying
+  details are what the task needs: test generalising those details (a region for a city, a sector for an
+  employer) rather than removing them, and a stronger loop attacker.
 - A stronger loop attacker (Sonnet in the loop, Opus as the held-out grader), at roughly $15–20.
 - A larger sample (200+ users) once one version is chosen, so differences can be tested.
 - Kai's full pipeline is now scored on the adjudicated gold set (see `docs/findings.md`, RQ4).
