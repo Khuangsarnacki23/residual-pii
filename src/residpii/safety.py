@@ -80,6 +80,11 @@ SAFE_TEXT_COLUMNS = {
     "whose", "annotator", "label_stratum", "attribute", "gold",
     # Stage 2 identifiability: dimension names and fixed labels, never profile values
     "combination", "activity_bucket", "match_on", "ci_kind", "predictor", "mode",
+    # sanitizer (RQ4): stage names and model ids from code and config, never data text
+    "stage", "rewrite_model", "attacker_model", "eval_attacker_model", "judge_model",
+    "source",   # review set source: 'fresh' or 'label_set'
+    # user-level adversarial loop: method, group and stop-reason names from code
+    "method", "group", "stop_reason",
 }
 
 

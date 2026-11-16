@@ -90,6 +90,21 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--config", required=True)
         p.add_argument("--dataset", nargs="*", help="Dataset keys (default: labeling.datasets in the config)")
 
+    adv = sub.add_parser("adversarial", help="User-level adversarial sanitizer (hosted, opt-in)")
+    asub = adv.add_subparsers(dest="adv_cmd", required=True)
+    a_est = asub.add_parser("estimate", help="Pilot users, turns and a rough cost (no API calls)")
+    a_run = asub.add_parser("run", help="Run both loops and the held-out attacker on the pilot users")
+    a_rep = asub.add_parser("report", help="Rebuild the aggregate table from stored results")
+    a_run.add_argument("--allow-hosted", action="store_true", help="Required: sends the users' turns to Anthropic")
+    a_run.add_argument("--max-cost", type=float, default=15.0, help="Hard cap in USD, earlier runs included")
+    a_run.add_argument("--workers", type=int, default=8)
+    for p in (a_est, a_run, a_rep):
+        p.add_argument("--config", required=True)
+        p.add_argument("--dataset", default="wildchat")
+    for p in (a_est, a_run):
+        p.add_argument("--at-risk", type=int, help="Default: adversarial.pilot_at_risk")
+        p.add_argument("--controls", type=int, help="Default: adversarial.pilot_control")
+
     args = ap.parse_args(argv)
     cfg = load_config(args.config)
 
@@ -133,6 +148,25 @@ def main(argv: list[str] | None = None) -> int:
                     break
         tables = llm_detect.prevalence(cfg, dsets)
         print(tables["llm_coverage"].to_string(index=False))
+        return 0
+
+    if args.cmd == "adversarial":
+        from . import user_adversarial as ua
+
+        acfg = cfg["adversarial"]
+        if args.adv_cmd == "report":
+            print(ua.report(cfg, args.dataset).to_string(index=False))
+            return 0
+        n_r = args.at_risk if args.at_risk is not None else int(acfg["pilot_at_risk"])
+        n_c = args.controls if args.controls is not None else int(acfg["pilot_control"])
+        if args.adv_cmd == "estimate":
+            print(ua.estimate(cfg, args.dataset, n_r, n_c).to_string(index=False))
+            return 0
+        if not args.allow_hosted:
+            print("[adversarial] sends user turns to Anthropic; pass --allow-hosted to confirm", file=sys.stderr)
+            return 2
+        print(json.dumps(ua.run(cfg, args.dataset, n_r, n_c, args.max_cost, args.workers), indent=2))
+        print(ua.report(cfg, args.dataset).to_string(index=False))
         return 0
 
     if args.cmd == "identifiability":
