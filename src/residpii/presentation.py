@@ -131,8 +131,10 @@ def _pr(detector, category="any", threshold=0.5):
 
 
 def fig_detector_pr():
-    dets = [("Presidio", "presidio", BLUE), ("LLM, private spans", "llm_detector", ORANGE),
-            ("LLM, all spans", "llm_detector_all", AQUA), ("Presidio or LLM", "any", VIOLET)]
+    # The LLM's "all spans" variant (every mark, whoever it belongs to) is left out: it only restates
+    # that a superset of flags trades precision for recall; the ownership point is made in the text.
+    dets = [("Presidio", "presidio", BLUE), ("LLM detector", "llm_detector", ORANGE),
+            ("Presidio or LLM, any flag", "any", VIOLET)]
     fig, ax = plt.subplots(figsize=(8.5, 6.5))
     offsets = {"presidio": (-12, 10), "llm_detector": (10, 8), "llm_detector_all": (-10, 28), "any": (10, -30)}
     for label, det, col in dets:
