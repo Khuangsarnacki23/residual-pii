@@ -139,7 +139,9 @@ addresses, birth dates and file paths that reveal the writer (home directories s
 system paths and web routes stay). It skips code: decorators are not handles, and code-shaped tokens
 (`np.array`, `my_var`) and ``` blocks get no name, place or organisation rules; `rules_generalize` also turns cities into countries, affiliated
 organisations into their kind, job titles into occupation groups, ages into bands and full dates into
-years, in personal sentences only. Its precision/recall switches are under `sanitizer.rules`. Each stage is scored against the human labels, which the
+years, in personal sentences only. Public figures, fictional characters and placeholder names
+(`configs/public_names.yaml`) are never redacted, and a lone common first name needs a strong cue
+("Dear Emma,", "my sister Emma"). Its precision/recall switches are under `sanitizer.rules`. Each stage is scored against the human labels, which the
 sanitizer never sees: `sanitizer_leakage.csv` (gold private values still present),
 `sanitizer_overredaction.csv` (non-PII words kept, PII-free turns changed, false redactions),
 `sanitizer_exposure.csv` (a held-out attacker, by default a different model from the loop's) and

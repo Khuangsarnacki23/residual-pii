@@ -1,0 +1,114 @@
+# Names the rule-based sanitizer leaves alone (src/residpii/rules_sanitize.py). Written from general
+# knowledge, not from the evaluation data. Matching is case-insensitive, ignores a trailing possessive
+# ('s), and is on the whole name; a listed person's distinctive surname alone also matches
+# ("Zuckerberg"). Deliberately incomplete and English-centred: extend freely. See docs/limitations.md.
+#
+# public_figures and fictional are always kept. placeholder names (example/template names) are kept.
+# common_first_names are kept only when a single first name appears without a strong cue (a letter
+# frame, "my name is", an honorific, "my boss X"): in "Dear Emma," it is still redacted.
+
+public_figures:
+  # politics and heads of state
+  - [joe biden, donald trump, barack obama, michelle obama, hillary clinton, bill clinton, george w. bush,
+     george bush, kamala harris, bernie sanders, nancy pelosi, mitch mcconnell, ron desantis, ronald reagan,
+     john f. kennedy, jfk, abraham lincoln, george washington, thomas jefferson, franklin d. roosevelt,
+     franklin roosevelt, theodore roosevelt, richard nixon, jimmy carter, winston churchill, margaret thatcher,
+     boris johnson, rishi sunak, keir starmer, theresa may, tony blair, king charles, queen elizabeth,
+     elizabeth ii, prince harry, prince william, meghan markle, emmanuel macron, angela merkel, olaf scholz,
+     vladimir putin, volodymyr zelensky, xi jinping, mao zedong, deng xiaoping, narendra modi, mahatma gandhi,
+     jawaharlal nehru, justin trudeau, nelson mandela, recep tayyip erdogan, benjamin netanyahu, kim jong un,
+     kim jong-un, shinzo abe, fumio kishida, lula, jair bolsonaro, napoleon, napoleon bonaparte, julius caesar,
+     cleopatra, alexander the great, genghis khan, adolf hitler, joseph stalin, vladimir lenin, karl marx,
+     friedrich engels, martin luther king, martin luther king jr., malcolm x, rosa parks, che guevara,
+     fidel castro, ayatollah khomeini, saddam hussein, osama bin laden, pope francis, dalai lama]
+  # business and technology
+  - [elon musk, jeff bezos, mark zuckerberg, bill gates, steve jobs, tim cook, sundar pichai, satya nadella,
+     larry page, sergey brin, sam altman, greg brockman, ilya sutskever, dario amodei, demis hassabis,
+     jensen huang, lisa su, peter thiel, marc andreessen, reid hoffman, jack dorsey, larry ellison,
+     warren buffett, charlie munger, george soros, michael bloomberg, jamie dimon, ray dalio,
+     jack ma, pony ma, masayoshi son, richard branson, steve wozniak, paul allen, susan wojcicki,
+     sheryl sandberg, marissa mayer, travis kalanick, brian chesky, drew houston, evan spiegel, jan koum,
+     andy jassy, mukesh ambani, gautam adani, ratan tata, bernard arnault, oprah winfrey, henry ford,
+     walt disney, andrew carnegie, john d. rockefeller, thomas edison, nikola tesla, linus torvalds,
+     guido van rossum, dennis ritchie, ken thompson, james gosling, bjarne stroustrup, alan turing,
+     ada lovelace, grace hopper, tim berners-lee, geoffrey hinton, yann lecun, yoshua bengio, andrew ng,
+     fei-fei li, andrej karpathy]
+  # science, philosophy, literature and art
+  - [albert einstein, isaac newton, charles darwin, galileo galilei, galileo, marie curie, stephen hawking,
+     richard feynman, carl sagan, neil degrasse tyson, niels bohr, max planck, sigmund freud, carl jung,
+     aristotle, plato, socrates, confucius, immanuel kant, friedrich nietzsche, arthur schopenhauer,
+     jean-paul sartre, simone de beauvoir, albert camus, rené descartes, rene descartes, john locke,
+     thomas hobbes, david hume, max weber, emile durkheim, michel foucault, noam chomsky, adam smith,
+     john maynard keynes, milton friedman, william shakespeare, shakespeare, charles dickens, jane austen,
+     mark twain, ernest hemingway, f. scott fitzgerald, george orwell, leo tolstoy, fyodor dostoevsky,
+     franz kafka, oscar wilde, virginia woolf, james joyce, edgar allan poe, j.k. rowling, jk rowling,
+     j. k. rowling, j.r.r. tolkien, tolkien, stephen king, agatha christie, arthur conan doyle,
+     haruki murakami, gabriel garcía márquez, gabriel garcia marquez, homer, dante, dante alighieri,
+     leonardo da vinci, michelangelo, pablo picasso, vincent van gogh, claude monet, frida kahlo,
+     ludwig van beethoven, beethoven, wolfgang amadeus mozart, mozart, johann sebastian bach, bach,
+     frederic chopin, rumi, jesus, jesus christ, muhammad, prophet muhammad, buddha, moses]
+  # entertainment, music, sport
+  - [taylor swift, beyonce, beyoncé, rihanna, drake, kanye west, kim kardashian, lady gaga, ariana grande,
+     justin bieber, billie eilish, ed sheeran, adele, eminem, snoop dogg, jay-z, michael jackson, elvis presley,
+     madonna, the beatles, john lennon, paul mccartney, freddie mercury, bob dylan, bts, blackpink,
+     tom hanks, tom cruise, brad pitt, angelina jolie, leonardo dicaprio, johnny depp, morgan freeman,
+     meryl streep, scarlett johansson, robert downey jr., keanu reeves, dwayne johnson, will smith,
+     jennifer lawrence, emma watson, daniel radcliffe, zendaya, timothée chalamet, timothee chalamet,
+     ryan reynolds, ryan gosling, margot robbie, natalie portman, jackie chan, bruce lee, shah rukh khan,
+     amitabh bachchan, steven spielberg, christopher nolan, quentin tarantino, martin scorsese,
+     james cameron, stanley kubrick, alfred hitchcock, hayao miyazaki, makoto shinkai, akira toriyama,
+     eiichiro oda, masashi kishimoto, hideo kojima, shigeru miyamoto, mrbeast, pewdiepie, joe rogan,
+     lionel messi, cristiano ronaldo, neymar, kylian mbappe, kylian mbappé, erling haaland, mohamed salah, david beckham, pele, pelé, diego maradona, zinedine zidane, lebron james, michael jordan,
+     kobe bryant, stephen curry, serena williams, roger federer, rafael nadal, novak djokovic, usain bolt,
+     tiger woods, muhammad ali, mike tyson, conor mcgregor, lewis hamilton, max verstappen, tom brady,
+     simone biles, virat kohli, sachin tendulkar]
+
+fictional:
+  - [harry potter, hermione granger, ron weasley, albus dumbledore, dumbledore, voldemort, severus snape,
+     hogwarts, frodo, frodo baggins, gandalf, aragorn, sauron, bilbo baggins, gollum, luke skywalker,
+     darth vader, han solo, princess leia, yoda, obi-wan kenobi, anakin skywalker, indiana jones,
+     james bond, sherlock holmes, dr. watson, john watson, hercule poirot, batman, bruce wayne, superman,
+     clark kent, wonder woman, spider-man, spiderman, peter parker, iron man, tony stark, captain america,
+     steve rogers, thor, loki, hulk, black widow, thanos, deadpool, wolverine, joker, harley quinn,
+     mickey mouse, donald duck, goofy, bugs bunny, homer simpson, bart simpson, marge simpson, lisa simpson,
+     spongebob, spongebob squarepants, patrick star, shrek, elsa, anna, olaf, simba, mulan, ariel, cinderella,
+     snow white, rapunzel, pinocchio, winnie the pooh, peter pan, alice in wonderland, dorothy gale,
+     mario, luigi, princess peach, bowser, link, zelda, ganondorf, pikachu, ash ketchum, sonic, master chief,
+     lara croft, kratos, geralt, geralt of rivia, cloud strife, sephiroth, solid snake, steve,
+     naruto, naruto uzumaki, sasuke, sasuke uchiha, sakura haruno, kakashi, itachi, goku, vegeta, gohan,
+     frieza, luffy, monkey d. luffy, zoro, nami, ichigo, eren yeager, mikasa, levi ackerman, light yagami,
+     tanjiro, nezuko, gojo, gojo satoru, saitama, sailor moon, totoro, hinata, boruto,
+     romeo, juliet, hamlet, macbeth, othello, ebenezer scrooge, jay gatsby, holden caulfield, atticus finch,
+     elizabeth bennet, mr. darcy, jane eyre, dracula, count dracula, frankenstein, captain ahab,
+     don quixote, robin hood, king arthur, merlin, santa claus, santa, the grinch, walter white,
+     jesse pinkman, tony soprano, jon snow, daenerys targaryen, tyrion lannister, arya stark, cersei lannister,
+     rick sanchez, morty smith, eleven, ted lasso, michael scott, dwight schrute, jim halpert, pam beesly,
+     ross geller, rachel green, chandler bing, monica geller, joey tribbiani, phoebe buffay, sheldon cooper]
+
+placeholder:
+  - [john doe, jane doe, john smith, jane smith, joe bloggs, joe public, john q. public, richard roe,
+     max mustermann, erika mustermann, alice, bob, eve, mallory, foo, bar, foo bar, lorem ipsum,
+     your name, first last, firstname lastname, first name, last name, full name, name surname, user,
+     test user, example, sample name, chatgpt, gpt, gpt-4, claude, bard, gemini, siri, alexa, cortana, dan]
+
+common_first_names:
+  - [james, john, robert, michael, william, david, richard, joseph, thomas, charles, christopher, daniel,
+     matthew, anthony, mark, donald, steven, paul, andrew, joshua, kenneth, kevin, brian, george, timothy,
+     ronald, edward, jason, jeffrey, ryan, jacob, gary, nicholas, eric, jonathan, stephen, larry, justin,
+     scott, brandon, benjamin, samuel, gregory, alexander, frank, patrick, raymond, jack, dennis, jerry,
+     tyler, aaron, jose, adam, nathan, henry, douglas, zachary, peter, kyle, noah, ethan, jeremy, walter,
+     christian, keith, roger, terry, austin, sean, gerald, carl, harold, dylan, arthur, lawrence, jordan,
+     jesse, bryan, billy, bruce, gabriel, joe, logan, alan, juan, albert, willie, elijah, wayne, randy,
+     vincent, liam, mason, lucas, oliver, leo, max, sam, alex, ben, tom, tim, jake, luke, harry, charlie,
+     oscar, mary, patricia, jennifer, linda, elizabeth, barbara, susan, jessica, sarah, karen, lisa, nancy,
+     betty, sandra, margaret, ashley, kimberly, emily, donna, michelle, carol, amanda, melissa, deborah,
+     stephanie, dorothy, rebecca, sharon, laura, cynthia, amy, kathleen, angela, shirley, brenda, emma,
+     anna, pamela, nicole, samantha, katherine, christine, helen, debra, rachel, carolyn, janet, maria,
+     catherine, heather, diane, olivia, julie, joyce, victoria, ruth, virginia, lauren, kelly, christina,
+     joan, evelyn, judith, andrea, hannah, megan, cheryl, jacqueline, martha, madison, teresa, gloria, sara,
+     janice, ann, kathryn, abigail, sophia, frances, jean, alice, judy, isabella, julia, grace, amber,
+     denise, danielle, marilyn, beverly, charlotte, natalie, theresa, diana, brittany, doris, kayla, alexis,
+     lori, marie, lily, chloe, ava, mia, zoe, ella, kate, sophie, jane, ali, mohammed, muhammad,
+     ahmed, omar, fatima, aisha, yusuf, hassan, hussein, ibrahim, raj, priya, rahul, amit,
+     wei, li, ming, hiroshi, yuki, sakura, kenji, akira, min-jun, ji-woo, carlos, luis, miguel, diego,
+     sofia, lucia, pierre, marie-claire, hans, anna-lena, ivan, olga, dmitri, natasha]

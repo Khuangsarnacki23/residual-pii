@@ -181,3 +181,18 @@ def test_rules_leave_code_alone():
     assert "[USERNAME_HANDLE]" in _run("my instagram is @sunny_days_88", task="code")    # cued handle in a code turn
     assert "Leeds" not in _run("I live in Leeds.")                                     # full stop is not code
     assert rs.code_context("x = np.array", 4, 6) and not rs.code_context("I live in Leeds.", 10, 15)
+
+
+def test_public_fictional_and_common_names_are_kept():
+    assert rs.is_known_name("Mark Zuckerberg") and rs.is_known_name("Zuckerberg") and rs.is_known_name("Luke Skywalker's")
+    assert rs.is_known_name("John Doe") and not rs.is_known_name("Priya Raman") and not rs.is_known_name("Smith")
+    wide = {"names_outside_story": True}
+    # Celebrities and characters stay even where names are otherwise redacted.
+    out = _run("What did Elon Musk say about Tesla, and would Harry Potter agree?", options=wide)
+    assert "Elon Musk" in out and "Harry Potter" in out
+    # A lone common first name stays without a strong cue, but a strong cue still redacts it.
+    assert "Emma" in _run("Write two lines where Emma says hello.", options=wide)
+    assert "Emma" not in _run("Please reply to my sister Emma about Sunday.", options=wide)
+    # An unlisted full name is redacted under the wide option; with lists off, celebrities are too.
+    assert "Priya Raman" not in _run("Summarise the email from Priya Raman about the budget.", options=wide)
+    assert "Elon Musk" not in _run("What did Elon Musk say?", options={**wide, "public_name_lists": False})
