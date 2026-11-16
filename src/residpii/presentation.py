@@ -131,12 +131,11 @@ def _pr(detector, category="any", threshold=0.5):
 
 
 def fig_detector_pr():
-    # The LLM's "all spans" variant (every mark, whoever it belongs to) is left out: it only restates
-    # that a superset of flags trades precision for recall; the ownership point is made in the text.
-    dets = [("Presidio", "presidio", BLUE), ("LLM detector", "llm_detector", ORANGE),
-            ("Presidio or LLM, any flag", "any", VIOLET)]
+    # Labels only: the values are read off the axes and given in the accompanying text.
+    dets = [("Presidio", "presidio", BLUE), ("LLM, private spans", "llm_detector", ORANGE),
+            ("LLM, all spans", "llm_detector_all", AQUA), ("LLM or Presidio", "any", VIOLET)]
     fig, ax = plt.subplots(figsize=(8.5, 6.5))
-    offsets = {"presidio": (-12, 10), "llm_detector": (10, 8), "llm_detector_all": (-10, 28), "any": (10, -30)}
+    offsets = {"presidio": (-14, 12), "llm_detector": (10, 8), "llm_detector_all": (-12, 10), "any": (12, -16)}
     for label, det, col in dets:
         d = _pr(det)
         p, r = d["precision"], d["recall"]
@@ -144,7 +143,7 @@ def fig_detector_pr():
                     yerr=_err(p.ci_low, p.ci_high, p.value), fmt="none", ecolor=col, alpha=0.45, elinewidth=1.4)
         ax.scatter(r.value, p.value, s=130, color=col, edgecolor=SURFACE, linewidth=2, zorder=3)
         prec = f"{p.value:.1%}" if p.value < 0.1 else f"{p.value:.0%}"
-        ax.annotate(f"{label}\n{prec} precise, finds {r.value:.0%}", (r.value, p.value),
+        ax.annotate(label, (r.value, p.value),
                     xytext=offsets[det], textcoords="offset points", fontsize=11, color=INK,
                     ha="right" if det in ("llm_detector_all", "presidio") else "left")
     _pct(ax, "x"), _pct(ax, "y")
