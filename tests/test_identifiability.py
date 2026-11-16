@@ -60,11 +60,19 @@ def test_coarsening_maps_label_schema_values():
     assert c1.candidates("education", "PhD") == [("education_level", "graduate")]
 
 
-def test_attributes_without_a_table_are_kept_as_stated():
+def test_free_text_attributes_are_categorised():
     c = load_coarsener(_cfg())
-    assert c.candidates("employer", " Brisvale Council. ") == [("employer", "brisvale council")]
-    assert c.candidates("religion", "Catholic") == [("religion", "catholic")]
-    assert c.candidates("nationality_ethnicity", "German") == [("nationality_ethnicity", "german")]
+    # Different wordings of the same fact land in one category.
+    assert c.candidates("health", "Type 2 diabetes") == c.candidates("health", "asthma") == [("health", "chronic_condition")]
+    assert c.candidates("health", "ADHD") == [("health", "neurodevelopmental")]
+    assert c.candidates("health", "a rare thing") == [("health", "other_condition")]       # fallback
+    assert c.candidates("employer", " Brisvale Council. ") == [("employer", "government_military")]
+    assert c.candidates("employer", "Acme Widgets") == [("employer", "other_employer")]
+    assert c.candidates("religion", "Catholic") == c.candidates("religion", "Baptist") == [("religion", "christian")]
+    assert c.candidates("nationality_ethnicity", "German") == [("nationality_ethnicity", "white_european")]
+    assert c.candidates("income", "low income") == [("income", "low")]
+    assert c.candidates("income", "about 40k") == [("income", UNKNOWN)]                   # no fallback
+    assert c.candidates("relationship", "married, two kids") == [("relationship", "married")]
     assert c.candidates("health", " ") == [] and c.candidates("not_an_attribute", "x") == []
     assert set(DIMENSIONS) == {"region", "country", "occupation_group", "age_band", "gender", "education_level",
                                "employer", "relationship", "nationality_ethnicity", "religion", "political",

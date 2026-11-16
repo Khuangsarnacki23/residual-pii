@@ -2,8 +2,9 @@
 # Attribute values (labelling schema: human labels or the LLM detector) are matched after
 # normalisation (lower-case, punctuation removed). Anything that does not match becomes `unknown`,
 # so a free-text value can never make a user look unique on these dimensions.
-# Employer, relationship, nationality/ethnicity, religion, political, income and health have no
-# table here and are kept as stated.
+# Employer, relationship, nationality/ethnicity, religion, political, income and health are mapped to
+# broad categories by `category_keywords` (first match wins); unmatched values become `unknown`, or the
+# attribute's `category_fallback` where one is set.
 # These tables are deliberately small and English/US-centred; see docs/limitations.md.
 
 age_band_years: 10
@@ -212,3 +213,66 @@ occupation_keywords:
   - ['\b(?:content creator|youtuber|streamer|influencer|media|marketing|creative)\b', "27"]
   - ['\b(?:hospitality|restaurant|food service)\b', "35"]
   - ['\b(?:logistics|transport\w*)\b', "53"]
+
+# Broad categories for attributes that would otherwise be free text. Without these, nearly every
+# stated value is distinct and anyone who mentions one is unique by construction.
+# [category, pattern] per attribute, matched after normalisation; first match wins.
+category_keywords:
+  health:
+    - [mental_health, '\b(?:depress\w*|anxiety|anxious|panic|ptsd|trauma\w*|bipolar|schizo\w*|ocd|eating disorder|anorexi\w*|bulimi\w*|suicid\w*|self harm|mental health|insomnia|burnout|therapy|therapist|psychiatr\w*)\b']
+    - [neurodevelopmental, '\b(?:adhd|add|autis\w*|asperger\w*|dyslexi\w*|dyspraxi\w*|neurodiverg\w*|learning disab\w*|tourette\w*)\b']
+    - [pregnancy_reproductive, '\b(?:pregnan\w*|fertility|ivf|miscarriage|menstrua\w*|period|pcos|endometriosis|menopaus\w*|contracepti\w*|postpartum)\b']
+    - [disability_sensory, '\b(?:disab\w*|wheelchair|blind\w*|deaf\w*|hearing loss|visual impair\w*|amputee|paralys\w*|paraplegi\w*)\b']
+    - [chronic_condition, '\b(?:diabet\w*|asthma|cancer|tumou?r|hypertension|blood pressure|heart|cardiac|epilep\w*|arthritis|crohn\w*|colitis|ibs|lupus|multiple sclerosis|ms|hiv|kidney|liver|thyroid|chronic|migraine\w*|fibromyalgia|copd|obes\w*|sleep apnea|allerg\w*|eczema|psoriasis)\b']
+    - [injury, '\b(?:injur\w*|broken|fracture\w*|sprain\w*|torn|surgery|concussion|back pain|knee|shoulder)\b']
+    - [substance_use, '\b(?:addict\w*|alcohol\w*|sober|sobriety|smok\w*|vap\w*|drug use|rehab)\b']
+    - [acute_illness, '\b(?:covid\w*|flu|influenza|cold|fever|infection|virus|sick|ill|illness)\b']
+  employer:
+    - [government_military, '\b(?:government|ministry|department of|council|federal|state of|city of|army|navy|air force|military|police|nhs|public sector|embassy|municipal\w*)\b']
+    - [education, '\b(?:university|college|school|academy|institute|polytechnic)\b']
+    - [healthcare, '\b(?:hospital|clinic|medical|health|pharma\w*|nhs)\b']
+    - [technology, '\b(?:google|microsoft|amazon|apple|meta|facebook|openai|ibm|intel|nvidia|oracle|samsung|tencent|alibaba|baidu|huawei|software|tech\w*|startup|it company|saas)\b']
+    - [finance, '\b(?:bank\w*|financ\w*|insurance|invest\w*|capital|accounting|audit\w*|fintech)\b']
+    - [retail_hospitality, '\b(?:store|shop|retail|restaurant|cafe|hotel|supermarket|walmart|mcdonalds|starbucks|target|costco)\b']
+    - [self_employed, '\b(?:self employed|freelanc\w*|own business|my business|my company|my startup|sole trader|founder)\b']
+  income:
+    - [low, '\b(?:low income|poor|broke|minimum wage|poverty|struggling financially|can ?t afford|unemployment benefit\w*|welfare|food stamps)\b']
+    - [high, '\b(?:high income|wealthy|rich|six figures?|millionaire|affluent|well off)\b']
+    - [middle, '\b(?:middle income|middle class|average income|modest income|comfortable)\b']
+  relationship:
+    - [divorced_separated, '\b(?:divorc\w*|separated|ex wife|ex husband|ex partner)\b']
+    - [widowed, '\b(?:widow\w*)\b']
+    - [married, '\b(?:married|wife|husband|spouse)\b']
+    - [partnered, '\b(?:boyfriend|girlfriend|partner|dating|engaged|fianc\w*|relationship)\b']
+    - [single, '\b(?:single|unmarried|not in a relationship)\b']
+    - [parent, '\b(?:parent|mother|father|mom|mum|dad|son|daughter|child\w*|kids?)\b']
+  religion:
+    - [none, '\b(?:atheis\w*|agnostic\w*|non religious|not religious|no religion|secular)\b']
+    - [christian, '\b(?:christian\w*|catholic\w*|protestant\w*|orthodox christian|baptist|methodist|lutheran|evangelical|mormon|lds|pentecostal|anglican|jehovah\w*)\b']
+    - [muslim, '\b(?:muslim|islam\w*|sunni|shia|shiite)\b']
+    - [jewish, '\b(?:jewish|jew|judaism)\b']
+    - [hindu, '\b(?:hindu\w*)\b']
+    - [buddhist, '\b(?:buddhis\w*)\b']
+    - [sikh, '\b(?:sikh\w*)\b']
+    - [other, '\b(?:pagan\w*|wicca\w*|spiritual|taois\w*|shinto|bahai|jain\w*)\b']
+  political:
+    - [left, '\b(?:left\w*|liberal|progressive|democrat\w*|socialist|communist|marxist|labour|green party)\b']
+    - [right, '\b(?:right\w*|conservative|republican|maga|libertarian|tory|nationalist)\b']
+    - [centre, '\b(?:centris\w*|centrist|center|centre|moderate|independent)\b']
+  nationality_ethnicity:
+    - [mixed, '\b(?:mixed|biracial|multiracial)\b']
+    - [east_asian, '\b(?:chinese|japanese|korean|taiwanese|hong kong\w*|mongolian|east asian)\b']
+    - [south_asian, '\b(?:indian|pakistani|bangladeshi|sri lankan|nepali|nepalese|south asian|desi|tamil|punjabi)\b']
+    - [southeast_asian, '\b(?:filipin\w*|vietnamese|thai|indonesian|malaysian|singaporean|burmese|cambodian|southeast asian)\b']
+    - [middle_east_north_africa, '\b(?:arab\w*|iranian|persian|turkish|egyptian|moroccan|algerian|tunisian|lebanese|syrian|iraqi|saudi|emirati|israeli|kurdish|palestinian|jordanian|middle eastern)\b']
+    - [sub_saharan_african, '\b(?:nigerian|kenyan|ghanaian|ethiopian|south african|ugandan|tanzanian|somali|cameroonian|african)\b']
+    - [black, '\b(?:black|african american)\b']
+    - [hispanic_latin_american, '\b(?:hispanic|latin[aox]?|latinx|mexican|brazilian|argentin\w*|colombian|peruvian|chilean|venezuelan|cuban|puerto rican|dominican)\b']
+    - [white_european, '\b(?:white|caucasian|european|british|english|scottish|welsh|irish|french|german|italian|spanish|portuguese|dutch|polish|russian|ukrainian|swedish|norwegian|danish|finnish|greek|romanian|czech|hungarian)\b']
+    - [north_american_oceanian, '\b(?:american|canadian|australian|new zealander|kiwi)\b']
+    - [indigenous, '\b(?:indigenous|native american|first nations|aboriginal|maori)\b']
+# Used when an attribute has a value but no pattern matches: the person did reveal one, so it
+# still counts as a (very coarse) known value instead of being dropped.
+category_fallback:
+  health: other_condition
+  employer: other_employer

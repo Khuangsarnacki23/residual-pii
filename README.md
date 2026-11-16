@@ -102,8 +102,9 @@ i.e. the writer or a real third party) and `llm_detector_all` (every span it mar
   by the dataset's own proxy (`hashed_ip`, re-hashed with our key). Datasets without a proxy are skipped.
 - **Profiles.** Built from the LLM detector's attributes (the same schema as the human labels), one
   vote per conversation, coarsened with the fixed tables in `configs/coarsening.yaml` (region, country,
-  SOC occupation group, age band, gender, education level). Employer, relationship, nationality,
-  religion, political, income and health are kept as stated. Two variants: stated only, and stated
+  SOC occupation group, age band, gender, education level), and keyword categories for employer,
+  relationship, nationality, religion, political, income and health, so wording alone cannot make
+  anyone unique. Two variants: stated only, and stated
   plus inferred. Profiles stay in `restricted/profiles_<ds>.parquet`.
 - **Outputs.** `uniqueness_*`: share of users unique on combinations of 1–4 attributes (in the
   sample, at smaller sample sizes, and a model-based population estimate). `linkage`: share of users

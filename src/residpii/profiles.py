@@ -12,9 +12,9 @@ the aggregate view that may be published.
 Six dimensions are generalised with lookup tables (configs/coarsening.yaml), so that two users who
 word the same fact differently still match: region (US state or a listed region), country,
 occupation group (SOC major group), age band, gender and education level. A value the tables
-do not recognise is `unknown` and never counts towards uniqueness. The remaining attributes have no
-table and are kept as stated (normalised text): employer, relationship, nationality_ethnicity,
-religion, political, income, health.
+do not recognise is `unknown` and never counts towards uniqueness. The remaining attributes
+(employer, relationship, nationality_ethnicity, religion, political, income, health) are mapped to
+broad categories by keyword (`category_keywords`), so free-text wording cannot make anyone unique.
 
 Nothing here looks anything up outside those tables, and users are grouped only by the dataset's
 own user proxy (`user_key`, a keyed hash).
@@ -44,9 +44,9 @@ OCCUPATION_GROUPS = {
 }
 
 TABLE_DIMENSIONS = ("region", "country", "occupation_group", "age_band", "gender", "education_level")
-# No lookup table exists for these: the stated value is kept. Dimension name == attribute name.
-AS_STATED = ("employer", "relationship", "nationality_ethnicity", "religion", "political", "income", "health")
-DIMENSIONS = (*TABLE_DIMENSIONS, *AS_STATED)
+# Mapped to broad categories by keyword (coarsening.yaml `category_keywords`). Dimension name == attribute name.
+CATEGORISED = ("employer", "relationship", "nationality_ethnicity", "religion", "political", "income", "health")
+DIMENSIONS = (*TABLE_DIMENSIONS, *CATEGORISED)
 VARIANTS = ("stated_only", "stated_plus_inferred")
 UNKNOWN, AMBIGUOUS = "unknown", "ambiguous"
 NOT_KNOWN = (UNKNOWN, AMBIGUOUS)    # a dimension with one of these is treated as not available
@@ -86,6 +86,12 @@ class Coarsener:
         self.school = [(lvl, re.compile(p, re.I)) for lvl, p in spec["school"]]
         self.occupation = [(re.compile(row[0], re.I), str(row[1]), row[2] if len(row) > 2 else "")
                            for row in spec["occupation_keywords"]]
+        self.categories = {attr: [(cat, re.compile(p, re.I)) for cat, p in rows]
+                           for attr, rows in (spec.get("category_keywords") or {}).items()}
+        self.fallback = dict(spec.get("category_fallback") or {})
+        missing = set(CATEGORISED) - set(self.categories)
+        if missing:
+            raise ValueError(f"coarsening.yaml: no category_keywords for {sorted(missing)}")
         bad = {g for _, g, _ in self.occupation} - set(OCCUPATION_GROUPS)
         if bad:
             raise ValueError(f"coarsening.yaml: unknown occupation groups {sorted(bad)}")
@@ -154,7 +160,10 @@ class Coarsener:
             return [("education_level", level if level != UNKNOWN else self._first(self.school, value))]
         if attribute == "occupation":
             return [("occupation_group", self._occupation(value))]
-        return [(attribute, v)] if attribute in AS_STATED else []
+        if attribute in CATEGORISED:
+            hit = self._first(self.categories[attribute], value)
+            return [(attribute, self.fallback.get(attribute, UNKNOWN) if hit == UNKNOWN else hit)]
+        return []
 
 
 def load_coarsener(cfg: dict) -> Coarsener:
