@@ -44,11 +44,16 @@ from . import llm_detect, profiles
 from .config import Paths
 from .sanitize import ATTACK, GENERALIZE, REWRITE_EXTRA, JUDGE, _ask, _schemas, _turn, redact, stage_spans
 
-METHODS = ("start", "per_message", "user_level")
+METHODS = ("start", "per_message", "user_level", "user_level_history")
 
 TARGETED = """Someone who reads everything this person has written can narrow them down using one \
 attribute they reveal. Rewrite the message so that attribute can no longer be inferred from it. \
 Generalise or drop only the cues listed, change nothing else, and keep the request answerable. \
+Follow the same rules as before."""
+
+GENTLE = """A stricter rewrite of this message broke the request. Rewrite it again so the attribute \
+below is harder to pin down, but keep every detail the request needs: replace the listed cues with \
+broader wording (a category, a region, a range) instead of deleting them, and change nothing else. \
 Follow the same rules as before."""
 
 HISTORY_ATTACK = ATTACK.replace(
@@ -238,13 +243,27 @@ class Loops:
         return texts, inf, {"rewrites": sum(rounds.values())}
 
     def user_level(self, user: str, base: dict[str, str], start_inf: dict[str, list],
-                   conv_of: dict[str, str]) -> tuple[dict, dict, dict]:
+                   conv_of: dict[str, str], order: list[str] | None = None,
+                   history: bool = False) -> tuple[dict, dict, dict]:
+        """history=False: risk from per-message attacks added up over conversations (Stage 2's measure).
+        history=True: each round the loop attacker reads the user's whole history at once, so cues that
+        only add up across messages count; a rewrite that fails the utility gate gets one gentler retry."""
         a, K = self.a, float(self.a["k"])
         texts, inf = dict(base), dict(start_inf)
-        prof = build_profile(inf, conv_of, self.coarsener, self.conf)
+        order = order or sorted(base)
+        hist: list[dict] = []
+
+        def profile() -> dict[str, str]:
+            nonlocal hist
+            if not history:
+                return build_profile(inf, conv_of, self.coarsener, self.conf)
+            hist = self.history_attack(self.s["attacker_model"], texts, order)
+            return self.history_profile(hist)
+
+        prof = profile()
         k, _ = self.ref.min_k(prof, user)
         log = {"k_by_round": [k], "rewrites": 0, "rejected_utility": 0, "rejected_edit": 0,
-               "too_long": 0, "targets": 0}
+               "too_long": 0, "targets": 0, "gentle_kept": 0}
         blocked, tries, stop = set(), {}, "max_rounds"
         for _ in range(int(a["max_rounds"])):
             if k >= K:
@@ -258,49 +277,77 @@ class Loops:
             if tries[dim] >= int(a["max_tries_per_attribute"]):
                 blocked.add(dim)
             val = prof[dim]
+            hist_cues = [x for x in hist if x.get("confidence", 0) >= self.conf
+                         and (dim, val) in coarse_votes([x], self.coarsener, self.conf)]
             for key in sorted(texts):
                 cues = [x for x in inf[key] if x.get("confidence", 0) >= self.conf
                         and (dim, val) in coarse_votes([x], self.coarsener, self.conf)]
+                low = texts[key].casefold()
+                cues += [x for x in hist_cues if len(x["cue"].strip()) >= 3 and x["cue"].strip().casefold() in low]
                 if not cues:
                     continue
                 if len(texts[key]) > int(a["max_rewrite_chars"]):
                     log["too_long"] += 1
                     continue
-                new = self.rewrite(texts[key], TARGETED, cues)
-                if new is None or new == texts[key]:
+                kept = None
+                for prompt in ((TARGETED, GENTLE) if history else (TARGETED,)):
+                    new = self.rewrite(texts[key], prompt, cues)
+                    if new is None or new == texts[key]:
+                        continue
+                    if changed_share(texts[key], new) > float(a["max_edit_share"]):
+                        log["rejected_edit"] += 1
+                        continue
+                    if self.judge(base[key], new) < int(a["min_utility"]):
+                        log["rejected_utility"] += 1
+                        continue
+                    kept = new
+                    log["gentle_kept"] += prompt is GENTLE
+                    break
+                if kept is None:
                     continue
-                if changed_share(texts[key], new) > float(a["max_edit_share"]):
-                    log["rejected_edit"] += 1
-                    continue
-                if self.judge(base[key], new) < int(a["min_utility"]):
-                    log["rejected_utility"] += 1
-                    continue
-                texts[key] = new
-                inf[key] = self.attack(new)
+                texts[key] = kept
+                inf[key] = self.attack(kept)
                 log["rewrites"] += 1
-            prof = build_profile(inf, conv_of, self.coarsener, self.conf)
+            prof = profile()
             k, _ = self.ref.min_k(prof, user)
             log["k_by_round"].append(k)
         log["stop_reason"] = "safe" if k >= K else stop
         return texts, inf, log
 
-    def held_out(self, texts: dict[str, str], order: list[str]) -> dict[str, str]:
-        """A different, stronger model reads the user's whole history at once."""
+    def history_attack(self, model: str, texts: dict[str, str], order: list[str]) -> list[dict]:
+        """One call: the model reads the user's whole history (up to eval_max_chars) at once."""
         cap, parts, n = int(self.a["eval_max_chars"]), [], 0
         for key in order:
             if n + len(texts[key]) > cap:
                 break
             parts.append(_turn(texts[key]))
             n += len(texts[key])
-        out = self.call(self.s["eval_attacker_model"], HISTORY_ATTACK, "\n\n".join(parts), self.schemas["attack"])
-        votes = coarse_votes((out or {}).get("inferences", []), self.coarsener, self.conf)
+        out = self.call(model, HISTORY_ATTACK, "\n\n".join(parts), self.schemas["attack"])
+        return (out or {}).get("inferences", [])
+
+    def history_profile(self, inferences: list[dict]) -> dict[str, str]:
         prof = {}
-        for dim, val in sorted(votes):
+        for dim, val in sorted(coarse_votes(inferences, self.coarsener, self.conf)):
             prof[dim] = profiles.AMBIGUOUS if dim in prof and prof[dim] != val else val
         return {d: v for d, v in prof.items() if v not in profiles.NOT_KNOWN}
 
+    def held_out(self, texts: dict[str, str], order: list[str]) -> dict[str, str]:
+        """A different, stronger model reads the user's whole history at once."""
+        return self.history_profile(self.history_attack(self.s["eval_attacker_model"], texts, order))
+
 
 # ---------------------------------------------------------------- data
+
+
+def latest_records(path: Path) -> dict[str, dict]:
+    """Latest stored record per user (a rerun that adds a method appends a fuller record)."""
+    out = {}
+    if path.exists():
+        for line in path.read_text().splitlines():
+            if line.strip():
+                r = json.loads(line)
+                out[r["user"]] = r
+    return out
 
 
 def layer2_texts(cfg: dict, paths: Paths, ds: str) -> pd.DataFrame:
@@ -348,7 +395,8 @@ def _setup(cfg: dict, ds: str, n_risk: int, n_control: int):
 
 
 def estimate(cfg: dict, ds: str, n_risk: int, n_control: int) -> pd.DataFrame:
-    """Rough upper-end cost, before any call. Assumes a fifth of turns trigger the per-message loop."""
+    """Rough upper-end cost of a fresh run, before any call. Assumes a fifth of turns trigger the
+    per-message loop. Calls already in the cache are free on a rerun, so a rerun costs less."""
     from .llm_label import PRICES
 
     a, s = cfg["adversarial"], cfg["sanitizer"]
@@ -363,9 +411,14 @@ def estimate(cfg: dict, ds: str, n_risk: int, n_control: int) -> pd.DataFrame:
     n_risk_real = int((users["group"] == "at_risk").sum())
     user_lvl = n_risk_real * 3 * 2 * (per_turn_rw + price(s["judge_model"], 2 * tok.mean() + 300, 20))
     hist = turns.groupby("user")["text"].apply(lambda t: min(t.str.len().sum(), int(a["eval_max_chars"])))
-    held = 3 * price(s["eval_attacker_model"], (hist / llm_detect.CHARS_PER_TOKEN + sys_tok).sum(), 400 * len(hist))
+    hist_tok = hist / llm_detect.CHARS_PER_TOKEN + sys_tok
+    held = len(METHODS) * price(s["eval_attacker_model"], hist_tok.sum(), 400 * len(hist))
+    risky = users.loc[users["group"] == "at_risk", "user"]
+    hist_loop = (int(a["max_rounds"]) + 1) * price(s["attacker_model"], hist_tok[hist_tok.index.isin(risky)].sum(),
+                                                   400 * len(risky)) + 2 * user_lvl
     rows = [("start attack (all turns)", start), ("per-message loop", per_msg), ("user-level loop", user_lvl),
-            ("held-out attacker (3 versions per user)", held)]
+            ("user-level loop, whole-history attacker", hist_loop),
+            (f"held-out attacker ({len(METHODS)} versions per user)", held)]
     df = pd.DataFrame(rows, columns=["step", "est_cost_usd"])
     df.loc[len(df)] = ["total", df["est_cost_usd"].sum()]
     df["est_cost_usd"] = df["est_cost_usd"].round(2)
@@ -379,9 +432,8 @@ def run(cfg: dict, ds: str, n_risk: int, n_control: int, max_cost: float, worker
     call = Caller(paths, ds, cfg["sanitizer"], max_cost, client)
     loops = Loops(cfg, ref, profiles.load_coarsener(cfg), call)
     out_path = paths.restricted / "adversarial" / f"users_{ds}.jsonl"
-    done = set()
-    if out_path.exists():
-        done = {json.loads(l)["user"] for l in out_path.read_text().splitlines() if l.strip()}
+    prev = latest_records(out_path)
+    done = {u for u, r in prev.items() if set(METHODS) <= set(r["methods"])}
     todo = users[~users["user"].isin(done)]
     print(f"[adversarial] {ds}: {len(todo)} of {len(users)} users to do; ${call.spent:.2f} of ${max_cost:.2f} "
           f"spent", file=sys.stderr, flush=True)
@@ -396,10 +448,12 @@ def run(cfg: dict, ds: str, n_risk: int, n_control: int, max_cost: float, worker
         start_inf = {k: loops.attack(v) for k, v in base.items()}
         pm_texts, pm_inf, pm_log = loops.per_message(base, start_inf)
         ul_texts, ul_inf, ul_log = loops.user_level(u.user, base, start_inf, conv_of)
+        uh_texts, uh_inf, uh_log = loops.user_level(u.user, base, start_inf, conv_of, order, history=True)
         rec = {"user": u.user, "group": u.group, "stage2_k": u.k, "n_turns": len(base),
                "user_n_conversations": int(u.user_n_conversations), "methods": {}}
         for m, texts, inf, log in (("start", base, start_inf, {}), ("per_message", pm_texts, pm_inf, pm_log),
-                                   ("user_level", ul_texts, ul_inf, ul_log)):
+                                   ("user_level", ul_texts, ul_inf, ul_log),
+                                   ("user_level_history", uh_texts, uh_inf, uh_log)):
             prof = build_profile(inf, conv_of, loops.coarsener, loops.conf)
             held = loops.held_out(texts, order)
             changed = [k for k in base if texts[k] != base[k]]
@@ -439,8 +493,7 @@ def report(cfg: dict, ds: str) -> pd.DataFrame:
     from .report import write_table
 
     paths = Paths(cfg).ensure()
-    p = paths.restricted / "adversarial" / f"users_{ds}.jsonl"
-    recs = [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
+    recs = list(latest_records(paths.restricted / "adversarial" / f"users_{ds}.jsonl").values())
     if not recs:
         raise RuntimeError("no adversarial results yet; run `residpii adversarial run` first")
     K, min_cell = float(cfg["adversarial"]["k"]), int((cfg.get("identifiability") or {}).get("min_cell", 10))
@@ -448,8 +501,10 @@ def report(cfg: dict, ds: str) -> pd.DataFrame:
     for group in ("all", "at_risk", "control"):
         rs = [r for r in recs if group == "all" or r["group"] == group]
         for m in METHODS:
-            ms = [r["methods"][m] for r in rs]
-            n_t = sum(r["n_turns"] for r in rs)
+            ms = [r["methods"][m] for r in rs if m in r["methods"]]
+            if not ms:
+                continue
+            n_t = sum(r["n_turns"] for r in rs if m in r["methods"])
             edits = [e for x in ms for e in x["edit_share"]]
             util = [s for x in ms for s in x["utility"]]
             row = {"dataset": ds, "group": group, "method": m, "n_users": len(rs), "k": K,
@@ -465,15 +520,17 @@ def report(cfg: dict, ds: str) -> pd.DataFrame:
                    "share_utility_ge4": np.mean([s >= 4 for s in util]) if util else np.nan,
                    "rejected_utility": sum(x.get("rejected_utility", 0) for x in ms),
                    "rejected_edit": sum(x.get("rejected_edit", 0) for x in ms),
+                   "gentle_kept": sum(x.get("gentle_kept", 0) for x in ms),
                    "suppressed": len(rs) < min_cell}
             if row["suppressed"]:
                 row = {k: (v if k in ("dataset", "group", "method", "k", "suppressed") else np.nan) for k, v in row.items()}
             rows.append(row)
         if group == "all":
-            for reason in ("safe", "no_target", "max_rounds"):
-                n = sum(r["methods"]["user_level"].get("stop_reason") == reason for r in rs)
-                rows.append({"dataset": ds, "group": group, "method": "user_level", "stop_reason": reason,
-                             "n_users": n if n == 0 or n >= min_cell else np.nan})
+            for m in ("user_level", "user_level_history"):
+                for reason in ("safe", "no_target", "max_rounds"):
+                    n = sum(r["methods"].get(m, {}).get("stop_reason") == reason for r in rs)
+                    rows.append({"dataset": ds, "group": group, "method": m, "stop_reason": reason,
+                                 "n_users": n if n == 0 or n >= min_cell else np.nan})
     df = pd.DataFrame(rows)
     write_table(df, paths.tables, "adversarial_summary")
     return df
