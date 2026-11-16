@@ -175,11 +175,11 @@ def fig_recall_by_category():
             if v == 0:
                 ax.text(x, 0.02, "0", ha="center", fontsize=9, color=INK2)
     n = pr[pr.detector == "presidio"].set_index("category").n
-    ax.set_xticks(range(len(cats)), [f"{lab}\n({int(n.get(c, 0))} spans)" for lab, c in cats])
+    ax.set_xticks(range(len(cats)), [f"{lab}\n(n = {int(n.get(c, 0))})" for lab, c in cats])
     _pct(ax, "y")
     ax.set_ylim(0, 1.05)
     ax.grid(axis="x", visible=False)
-    ax.set_ylabel("Recall on the gold set")
+    ax.set_ylabel("Recall")
     _title(ax, "Occupation and education, the most common leftovers, are missed by every tool")
     ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), ncol=3)
     _title(ax, "Occupation and education, the most common leftovers, are missed by every tool", pad=36)
