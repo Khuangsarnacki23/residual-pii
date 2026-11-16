@@ -44,7 +44,7 @@ from . import llm_detect, profiles
 from .config import Paths
 from .sanitize import ATTACK, GENERALIZE, REWRITE_EXTRA, JUDGE, _ask, _schemas, _turn, redact, stage_spans
 
-METHODS = ("start", "per_message", "user_level", "user_level_history")
+METHODS = ("start", "per_message", "user_level", "user_level_history", "user_level_strict")
 
 TARGETED = """Someone who reads everything this person has written can narrow them down using one \
 attribute they reveal. Rewrite the message so that attribute can no longer be inferred from it. \
@@ -244,21 +244,29 @@ class Loops:
 
     def user_level(self, user: str, base: dict[str, str], start_inf: dict[str, list],
                    conv_of: dict[str, str], order: list[str] | None = None,
-                   history: bool = False) -> tuple[dict, dict, dict]:
+                   history: bool = False, strict: bool = False) -> tuple[dict, dict, dict]:
         """history=False: risk from per-message attacks added up over conversations (Stage 2's measure).
         history=True: each round the loop attacker reads the user's whole history at once, so cues that
-        only add up across messages count; a rewrite that fails the utility gate gets one gentler retry."""
-        a, K = self.a, float(self.a["k"])
+        only add up across messages count; a rewrite that fails the utility gate gets one gentler retry.
+        strict=True: the core loop with a stricter stop: the user counts as safe only when both
+        attackers (per-message, added up, and whole history) put them in a class of at least
+        adversarial.strict_k; each round targets whichever profile is riskier. No gentle retry."""
+        a = self.a
+        K = float(a["strict_k"] if strict else a["k"])
         texts, inf = dict(base), dict(start_inf)
         order = order or sorted(base)
         hist: list[dict] = []
 
         def profile() -> dict[str, str]:
             nonlocal hist
-            if not history:
-                return build_profile(inf, conv_of, self.coarsener, self.conf)
+            per = build_profile(inf, conv_of, self.coarsener, self.conf)
+            if not (history or strict):
+                return per
             hist = self.history_attack(self.s["attacker_model"], texts, order)
-            return self.history_profile(hist)
+            whole = self.history_profile(hist)
+            if not strict:
+                return whole
+            return min((per, whole), key=lambda p_: self.ref.min_k(p_, user)[0])
 
         prof = profile()
         k, _ = self.ref.min_k(prof, user)
@@ -449,11 +457,13 @@ def run(cfg: dict, ds: str, n_risk: int, n_control: int, max_cost: float, worker
         pm_texts, pm_inf, pm_log = loops.per_message(base, start_inf)
         ul_texts, ul_inf, ul_log = loops.user_level(u.user, base, start_inf, conv_of)
         uh_texts, uh_inf, uh_log = loops.user_level(u.user, base, start_inf, conv_of, order, history=True)
+        us_texts, us_inf, us_log = loops.user_level(u.user, base, start_inf, conv_of, order, strict=True)
         rec = {"user": u.user, "group": u.group, "stage2_k": u.k, "n_turns": len(base),
                "user_n_conversations": int(u.user_n_conversations), "methods": {}}
         for m, texts, inf, log in (("start", base, start_inf, {}), ("per_message", pm_texts, pm_inf, pm_log),
                                    ("user_level", ul_texts, ul_inf, ul_log),
-                                   ("user_level_history", uh_texts, uh_inf, uh_log)):
+                                   ("user_level_history", uh_texts, uh_inf, uh_log),
+                                   ("user_level_strict", us_texts, us_inf, us_log)):
             prof = build_profile(inf, conv_of, loops.coarsener, loops.conf)
             held = loops.held_out(texts, order)
             changed = [k for k in base if texts[k] != base[k]]
@@ -526,7 +536,7 @@ def report(cfg: dict, ds: str) -> pd.DataFrame:
                 row = {k: (v if k in ("dataset", "group", "method", "k", "suppressed") else np.nan) for k, v in row.items()}
             rows.append(row)
         if group == "all":
-            for m in ("user_level", "user_level_history"):
+            for m in ("user_level", "user_level_history", "user_level_strict"):
                 for reason in ("safe", "no_target", "max_rounds"):
                     n = sum(r["methods"].get(m, {}).get("stop_reason") == reason for r in rs)
                     rows.append({"dataset": ds, "group": group, "method": m, "stop_reason": reason,
