@@ -96,8 +96,9 @@ the two most common, have no Presidio entity type at all.
 `identifiability validate` compares the LLM's per-turn attributes with the gold attributes after the
 coarsening Stage 2 uses (stated plus inferred): precision 40%, recall 29% over 14 gold items with an
 attribute; occupation recall 11% (1 of 9). Gold attributes come from one annotator and are sparse,
-so this is indicative only. Profiles built from this extractor will under-count what users reveal,
-which makes Stage 2 uniqueness a likely lower bound.
+so this is indicative only. Profiles built from this extractor miss much of what users reveal and
+contain wrong values, so Stage 2 uniqueness is not a clean bound in either direction (see
+[stage2_results.md](stage2_results.md)).
 
 ## Limitations
 

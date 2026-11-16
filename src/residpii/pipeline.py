@@ -16,8 +16,8 @@ import pandas as pd
 from . import analysis, dedup, detect, redactions, report
 from .config import Paths, load_taxonomy, stable_hash
 from .safety import load_or_create_key
-from .sampling import eligible, stratified_sample
-from .sources import HFSource
+from .sampling import NoUserProxy, eligible, stratified_sample, user_level_sample
+from .sources import SPECS, HFSource
 
 PIPELINE_VERSION = "0.1.0"
 
@@ -67,15 +67,25 @@ class Pipeline:
     # ------------------------------------------------------------------ stages
     def sample(self, name: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
         """Returns (sample metadata, sampled user turns, cache key)."""
+        if (self.cfg["sampling"].get("mode") == "user_level" and name not in self._sources
+                and SPECS[name].user is None):
+            raise NoUserProxy(f"user_level sampling needs a user proxy and {name} has none")
         src = self.source(name)
         base = {"v": PIPELINE_VERSION, "repo": src.repo, "rev": src.revision, "scan": self.cfg["scan"]}
         meta_key = stable_hash(base)
         meta, _ = cached(self.paths.work / f"meta_{name}.parquet", meta_key,
                          lambda: (src.scan_meta(), {}), self.force)
         n = self.cfg["datasets"].get(name, {}).get("sample_size", 100)
-        s_key = stable_hash([meta_key, self.cfg["sampling"], self.cfg.get("languages"), n, self.seed(name)])
-        smp, summary = cached(self.paths.work / f"sample_{name}.parquet", s_key,
-                              lambda: stratified_sample(meta, n, self.cfg, self.seed(name)), self.force)
+        if self.cfg["sampling"].get("mode", "per_user_one_conv") == "user_level":
+            if not meta["user_key"].notna().any():
+                raise NoUserProxy(f"user_level sampling needs a user proxy and {name} has none")
+            s_key = stable_hash([meta_key, "user_level", self.cfg["user_level"], self.cfg["sampling"],
+                                 self.cfg.get("languages"), self.seed(name)])
+            draw = lambda: user_level_sample(meta, self.cfg, self.seed(name))  # noqa: E731
+        else:
+            s_key = stable_hash([meta_key, self.cfg["sampling"], self.cfg.get("languages"), n, self.seed(name)])
+            draw = lambda: stratified_sample(meta, n, self.cfg, self.seed(name))  # noqa: E731
+        smp, summary = cached(self.paths.work / f"sample_{name}.parquet", s_key, draw, self.force)
         turns, _ = cached(self.paths.restricted / f"turns_{name}.parquet", s_key,
                           lambda: (src.fetch_turns(smp), {}), self.force)
         self.manifest["datasets"][name] = {"repo": src.repo, "revision": src.revision, "sampling": summary}

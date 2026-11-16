@@ -1,0 +1,11 @@
+dataset,detector,category,below_threshold,dummy_value,placeholder_overlap,residual
+wildchat,presidio,account_id,24142,17,0,198
+wildchat,presidio,date,7,18,0,42259
+wildchat,presidio,email,0,23,0,118
+wildchat,presidio,ip_address,0,137,0,74
+wildchat,presidio,location,0,40,0,56434
+wildchat,presidio,name,0,316,12,127081
+wildchat,presidio,nrp,0,16,0,39340
+wildchat,presidio,phone,1975,14,0,5
+wildchat,presidio,url,0,268,0,60949
+wildchat,secrets,api_key_token,0,2,0,45

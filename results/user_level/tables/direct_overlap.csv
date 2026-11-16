@@ -1,0 +1,17 @@
+dataset,variant,category,n_users,n_direct,share_direct,n_direct_and_unique,share_direct_and_unique,suppressed
+wildchat,stated_only,any,1982,168,0.0847629,31,0.0156408,False
+wildchat,stated_only,api_key_token,1982,,,,,True
+wildchat,stated_only,email,1982,,,,,True
+wildchat,stated_only,name,1982,85,0.042886,25,0.0126135,False
+wildchat,stated_only,personal_url,1982,,,,,True
+wildchat,stated_only,phone,1982,,,,,True
+wildchat,stated_only,street_address,1982,,,,,True
+wildchat,stated_only,username_handle,1982,,,,,True
+wildchat,stated_plus_inferred,any,1982,168,0.0847629,46,0.0232089,False
+wildchat,stated_plus_inferred,api_key_token,1982,,,,,True
+wildchat,stated_plus_inferred,email,1982,,,,,True
+wildchat,stated_plus_inferred,name,1982,85,0.042886,35,0.0176589,False
+wildchat,stated_plus_inferred,personal_url,1982,,,,,True
+wildchat,stated_plus_inferred,phone,1982,,,,,True
+wildchat,stated_plus_inferred,street_address,1982,,,,,True
+wildchat,stated_plus_inferred,username_handle,1982,68,0.0343088,11,0.00554995,False

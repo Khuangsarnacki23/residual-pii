@@ -11,8 +11,9 @@ chat-log datasets after each dataset's own de-identification. All outputs are ag
 
 **Status:** Stage 1 is done for WildChat: a 300-item gold set labelled by two annotators and
 adjudicated, with Presidio and the secrets rules scored against it. Results and the summary line are
-in [docs/stage1_results.md](docs/stage1_results.md). The LLM detector is built but not yet scored
-(opt-in, hosted). LMSYS and Arena have no label sets. See [docs/limitations.md](docs/limitations.md).
+in [docs/stage1_results.md](docs/stage1_results.md), with the LLM detector scored alongside. Stage 2
+(per-user identifiability, 2,000 WildChat users) is in [docs/stage2_results.md](docs/stage2_results.md).
+LMSYS and Arena have no label sets. See [docs/limitations.md](docs/limitations.md).
 
 ## Setup
 
@@ -86,6 +87,35 @@ random subset of whole conversations. Writes text-free spans to
 i.e. the writer or a real third party) and `llm_detector_all` (every span it marked). Aggregate tables:
 `llm_prevalence.csv`, `llm_coverage.csv`. `label score` then grades the LLM detector next to Presidio.
 
+### Per-user identifiability (Stage 2)
+
+```bash
+.venv/bin/residpii run              --config configs/user_level.yaml                        # sample users, not conversations
+.venv/bin/residpii llm-detect       --config configs/user_level.yaml --estimate             # cost only
+.venv/bin/residpii llm-detect       --config configs/user_level.yaml --allow-hosted --max-cost 20
+.venv/bin/residpii identifiability run      --config configs/user_level.yaml               # uniqueness + linkage tables
+.venv/bin/residpii identifiability validate --config configs/default.yaml                  # extractor vs gold attributes
+```
+
+- **Sample.** `sampling.mode: user_level` draws 2,000 WildChat users with at least 3 conversations and
+  keeps their conversations together (at most 50, a random subset above that). Users are linked only
+  by the dataset's own proxy (`hashed_ip`, re-hashed with our key). Datasets without a proxy are skipped.
+- **Profiles.** Built from the LLM detector's attributes (the same schema as the human labels), one
+  vote per conversation, coarsened with the fixed tables in `configs/coarsening.yaml` (region, country,
+  SOC occupation group, age band, gender, education level), and keyword categories for employer,
+  relationship, nationality, religion, political, income and health, so wording alone cannot make
+  anyone unique. Two variants: stated only, and stated
+  plus inferred. Profiles stay in `restricted/profiles_<ds>.parquet`.
+- **Outputs.** `uniqueness_*`: share of users unique on combinations of 1–4 attributes (in the
+  sample, at smaller sample sizes, and a model-based population estimate). `linkage`: share of users
+  whose two random halves of conversations match each other best, on profiles, on direct identifiers
+  (keyed hashes only), or both. `direct_overlap`: unique users who also left a direct identifier.
+  Cells with fewer than 10 users are blanked. Only users fully covered by the LLM detector are
+  profiled (`identifiability_coverage.csv`); an early budget stop leaves whole users.
+- **Validate first.** `identifiability validate` compares extracted attributes with the adjudicated
+  gold attributes on the Stage 1 label items, per dimension and after coarsening. It needs
+  `llm-detect` on the default run, or `--predictor llm` after `label llm`.
+
 ### Storage
 Data is streamed column by column from the Hub; nothing is downloaded in full. Text is read only
 for row groups that contain sampled conversations, and only the user `content`/`role` fields.
@@ -95,7 +125,8 @@ A full WildChat run streams roughly 2–3 GB over the network.
 ## Layout
 
 ```
-configs/      default.yaml, smoke.yaml (extends default), taxonomy.yaml
+configs/      default.yaml, smoke.yaml (extends default), taxonomy.yaml,
+              user_level.yaml (+ _smoke), coarsening.yaml
 src/residpii/
   sources.py     streaming Hub adapters → common schema; revision pinning
   sampling.py    stratified sample, one conversation per user proxy, design weights
@@ -106,6 +137,10 @@ src/residpii/
   report.py      tables, figures, methods.md, disclosure drafts
   safety.py      keyed span hashing, SafeSpan, output-table guard
   labeling.py    label-set sampling, label store, agreement, precision/recall vs gold
+  profiles.py    Stage 2: per-user profiles, coarsening, attribute validation vs gold
+  uniqueness.py  Stage 2: k-anonymity style uniqueness + population estimate
+  linkage.py     Stage 2: split-half linkage, direct-identifier overlap
+  identifiability.py  Stage 2 commands
   annotate.py    local blind labelling server (+ annotate.html)
   llm_label.py   opt-in Claude annotator for the label sets
   llm_detect.py  opt-in LLM detector over the full sample, with a spending cap

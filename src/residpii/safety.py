@@ -78,6 +78,8 @@ SAFE_TEXT_COLUMNS = {
     "detectors", "dedup_status", "category_label",
     # labelling benchmark: vocabularies from configs/default.yaml, never data text
     "whose", "annotator", "label_stratum", "attribute", "gold",
+    # Stage 2 identifiability: dimension names and fixed labels, never profile values
+    "combination", "activity_bucket", "match_on", "ci_kind", "predictor", "mode",
 }
 
 

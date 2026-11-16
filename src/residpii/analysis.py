@@ -21,7 +21,7 @@ def conversation_indicators(sample: pd.DataFrame, spans: pd.DataFrame, taxonomy:
     plus per-tier and union columns. Column names are 'detector::category'."""
     res = residual(spans, threshold)
     key = ["dataset", "conversation_id"]
-    base = sample[key].copy()
+    base = sample[key].reset_index(drop=True)
     cats = list(taxonomy["categories"])
     tiers = sorted({v["tier"] for v in taxonomy["categories"].values()})
     detectors = sorted(spans["detector"].unique()) if len(spans) else []
