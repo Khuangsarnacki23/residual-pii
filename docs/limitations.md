@@ -108,3 +108,8 @@ figures are not separated from private individuals.
   Relative paths (`./src/...`), short paths and paths inside URLs are kept, so a personal folder name
   in a short relative path is missed; deep but generic paths (`/content/drive/MyDrive/data/x.csv`) are
   redacted anyway.
+- **Name lists are hand-written and incomplete.** `configs/public_names.yaml` lists about 340 public
+  figures, 170 fictional characters, placeholders and 250 common first names, English-centred. An
+  unlisted celebrity or character is treated like anyone else, and a real person who shares a listed
+  name (a private "Michael Jordan") is not redacted. A few entries first written after seeing review
+  data were removed so the review scores are not inflated.

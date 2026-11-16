@@ -114,6 +114,11 @@ sanitizer:
     names_in_first_person: true            # also names in first-person sentences (not only letters, "my boss X")
     organizations_in_first_person: false   # true: any organisation in a personal sentence, not only after
                                            # "work at / studied at"; fewer leaks, about 2x the clean turns edited
+    paths: true                            # home-directory / deep file paths -> [PATH]
+    public_name_lists: true                # never redact public figures, fictional characters, placeholders
+                                           # (configs/public_names.yaml); lone common first names need a strong cue
+    names_outside_story: true              # also names in any non-story, non-code turn (more real names
+                                           # caught, more false edits; only sensible with public_name_lists)
 
 # Blind, pooled human review of the sanitizers (`residpii review`): every offline stage's edits on a
 # turn are shown together, unattributed; the reviewer judges each and adds what all of them missed.

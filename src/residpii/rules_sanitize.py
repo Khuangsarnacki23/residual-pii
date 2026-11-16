@@ -99,6 +99,50 @@ def tables() -> dict:
     return t
 
 
+COMMON_SURNAMES = {
+    "smith", "jones", "brown", "johnson", "williams", "miller", "davis", "wilson", "taylor", "anderson",
+    "thomas", "moore", "martin", "jackson", "white", "harris", "clark", "lewis", "young", "walker", "hall",
+    "allen", "king", "scott", "green", "baker", "adams", "nelson", "hill", "campbell", "mitchell", "roberts",
+    "carter", "phillips", "evans", "turner", "parker", "collins", "edwards", "stewart", "morris", "rogers",
+    "cook", "morgan", "bell", "murphy", "bailey", "cooper", "howard", "ward", "gray", "james", "watson",
+    "brooks", "kelly", "sanders", "price", "bennett", "wood", "ross", "henderson", "perry", "powell",
+    "hughes", "washington", "butler", "foster", "gonzalez", "bryant", "alexander", "russell", "griffin",
+    "hayes", "garcia", "rodriguez", "martinez", "lopez", "hernandez", "lee", "kim", "park", "chen", "wang",
+    "zhang", "liu", "singh", "kumar", "khan", "ali", "ahmed", "hussein", "nguyen", "tran", "stark", "wayne",
+    "kent", "potter", "holmes", "bond", "jordan", "curry", "james", "john", "johnson", "young", "page"}
+
+
+def _norm_name(name: str) -> str:
+    n = re.sub(r"(?:'s|’s)$", "", name.strip().casefold())
+    return re.sub(r"\s+", " ", n).strip(" .,;:!?\"'")
+
+
+@lru_cache(maxsize=1)
+def name_lists() -> dict:
+    """Public figures, fictional characters and placeholders (always kept), their distinctive surnames,
+    and common first names (kept when alone and without a strong cue). configs/public_names.yaml."""
+    raw = yaml.safe_load((REPO_ROOT / "configs" / "public_names.yaml").read_text())
+
+    def flat(v):
+        return {_norm_name(x) for sub in v for x in (sub if isinstance(sub, list) else [sub])}
+    known = flat(raw["public_figures"]) | flat(raw["fictional"])
+    surnames = {n.split()[-1] for n in known if " " in n}
+    surnames = {x for x in surnames if len(x) >= 5 and x not in COMMON_SURNAMES}
+    return {"keep": known | flat(raw["placeholder"]), "surnames": surnames,
+            "common_first": flat(raw["common_first_names"])}
+
+
+def is_known_name(name: str) -> bool:
+    """A public figure, fictional character or placeholder ("Elon Musk", "Zuckerberg", "John Doe")."""
+    n, lists = _norm_name(name), name_lists()
+    return n in lists["keep"] or (" " not in n and n in lists["surnames"])
+
+
+def is_common_first_name(name: str) -> bool:
+    n = _norm_name(name)
+    return " " not in n and n in name_lists()["common_first"]
+
+
 @lru_cache(maxsize=1)
 def nlp(model: str = "en_core_web_lg"):
     import spacy
@@ -111,7 +155,8 @@ def _edit(s: int, e: int, category: str, replacement: str | None = None) -> dict
             "replacement": replacement if replacement is not None else f"[{category.upper()}]"}
 
 
-DEFAULT_OPTIONS = {"names_in_first_person": True, "organizations_in_first_person": False, "paths": True}
+DEFAULT_OPTIONS = {"names_in_first_person": True, "organizations_in_first_person": False, "paths": True,
+                   "public_name_lists": True, "names_outside_story": True}
 
 
 def code_spans(text: str) -> list[tuple[int, int]]:
@@ -176,16 +221,25 @@ def identifier_edits(text: str, doc, task_type: str, options: dict | None = None
         # letter frame, an honorific, a relationship word, or any name in a CV / letter / email turn
         # (outside those, most names in prompts are characters, public figures or examples).
         sent = ent.sent.text if doc.has_annotation("SENT_START") else ""
-        real = (SELF_OR_LETTER.search(before) or HONORIFIC.search(before) or RELATION.search(before)
-                or (letter_like and task_type not in SKIP_TASKS)
+        strong = SELF_OR_LETTER.search(before) or HONORIFIC.search(before) or RELATION.search(before)
+        weak = ((letter_like and task_type not in SKIP_TASKS)
                 or (opt["names_in_first_person"] and task_type not in SKIP_TASKS | {"creative_other"}
-                    and FIRST_PERSON.search(sent)))
-        if real:
+                    and FIRST_PERSON.search(sent))
+                or (opt["names_outside_story"] and task_type not in SKIP_TASKS | {"creative_other"}))
+        if opt["public_name_lists"]:
+            # Public figures, characters and placeholders are never redacted. A lone common first name
+            # is kept unless a strong cue marks a real person ("Dear Emma,", "my sister Emma").
+            if is_known_name(name):
+                continue
+            if not strong and is_common_first_name(name):
+                continue
+        if strong or weak:
             edits.append(_edit(ent.start_char, ent.end_char, "name"))
     # Signature lines in letters and emails: a short name-shaped line after a closing ("Best,\nAnna Li").
     if letter_like:
         for m in SIGNATURE.finditer(text):
-            edits.append(_edit(m.start("n"), m.end("n"), "name"))
+            if not (opt["public_name_lists"] and is_known_name(m.group("n"))):
+                edits.append(_edit(m.start("n"), m.end("n"), "name"))
     for rx, cat in ((IPV4, "ip_address"), (PROFILE_URL, "personal_url"), (STREET, "street_address")):
         edits += [_edit(m.start(), m.end(), cat) for m in rx.finditer(text)]
     # Handles: not decorators (@app.route, @property at a line start or followed by . or ( ), and in code
