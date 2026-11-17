@@ -307,6 +307,29 @@ def fig_sanitizer_tradeoff():
     _save(fig, "rq4_sanitizer_tradeoff")
 
 
+def fig_sanitizer_tradeoff_simple():
+    """The talk's one comparison: per-message loop against our user-level loop (strict stop)."""
+    a = _adv()
+    fig, ax = plt.subplots(figsize=(8.4, 5.8))
+    pts = [("Before rewriting", 0.0, 23, MUTED, (12, -4), "left"),
+           ("Per-message (Staab et al.)", a.loc["per_message"].share_turns_changed, STILL_AT_RISK["per_message"], BLUE, (-12, 10), "right"),
+           ("User-level (ours)", a.loc["user_level_strict"].share_turns_changed, STILL_AT_RISK["user_level_strict"], ORANGE, (12, 6), "left")]
+    for lab, x, y, col, off, ha in pts:
+        ax.scatter(x, y, s=170, color=col, edgecolor=SURFACE, linewidth=2, zorder=3)
+        ax.annotate(lab, (x, y), xytext=off, textcoords="offset points", fontsize=13, ha=ha, color=INK)
+    _pct(ax, "x")
+    ax.xaxis.set_major_locator(matplotlib.ticker.MultipleLocator(0.04))
+    ax.set_xlim(-0.01, 0.17)
+    ax.set_ylim(10, 25)
+    ax.set_xlabel("Share of user messages rewritten")
+    ax.set_ylabel("At-risk users still at risk (of 23)")
+    ax.annotate("better", xy=(0.002, 11.2), xytext=(0.03, 13.5), fontsize=11, color=MUTED,
+                arrowprops=dict(arrowstyle="->", color=MUTED))
+    _title(ax, "Per user: similar protection, far fewer edits")
+    _note(fig, "50-user pilot; at risk = held-out attacker puts the user in a class under 5 (p = 0.73 for the gap).")
+    _save(fig, "rq4_sanitizer_tradeoff_simple")
+
+
 def fig_sanitizer_panels():
     a = _adv()
     panels = [("Users still at risk (of 23)", lambda m: STILL_AT_RISK[m], "{:.0f}", (0, 24)),
@@ -412,7 +435,7 @@ def main():
     if "--deck" in sys.argv[1:]:
         apply_deck_style()
     for f in (fig_layered_sanitizer,fig_residual_prevalence, fig_detector_pr, fig_recall_by_category, fig_attributes,
-              fig_uniqueness_curve, fig_activity, fig_sanitizer_tradeoff, fig_sanitizer_panels, fig_stop_reasons):
+              fig_uniqueness_curve, fig_activity, fig_sanitizer_tradeoff, fig_sanitizer_tradeoff_simple, fig_sanitizer_panels, fig_stop_reasons):
         f()
     print(f"wrote {len(list(OUT.glob('*.png')))} figures to {OUT.relative_to(REPO_ROOT)}")
 
